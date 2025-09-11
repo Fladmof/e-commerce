@@ -1,0 +1,315 @@
+@charset "UTF-8";
+
+* {
+    margin: 0%;
+    padding: 0%;
+}
+
+/*Criando a parte de cima do cabeçalho*/
+.invite {
+    background-color: black;
+    color: white;
+    text-align: center;
+    padding: 5px;
+}
+
+a {
+    color: white;
+}
+
+/*Criando o navegador*/
+.container {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px;
+}
+
+ul {
+    display: flex;
+    list-style-type: none;
+}
+
+.menu {
+    margin-right: 15px;
+    text-decoration: none;
+    color: black;
+}
+
+/*Criando a barra de pesquisa*/
+#search {
+    border-radius: 20px;
+    width: 300px;
+    margin-bottom: 10px;
+    padding: 4px;
+    padding-left: 10px;
+}
+
+#button {
+    text-decoration: none;
+}
+/*Fundo diferente*/
+.atration {
+    flex-wrap: wrap;
+    background-color: rgba(128, 128, 128, 0.338);
+    padding-top: 20px;
+}
+
+/*Parágrafo Chamativo*/
+.atention {
+    margin-top: 30px;
+    font-size: 50px;
+    font-weight: 900;
+
+    width: 600px;
+    padding-left: 20px;
+}
+
+/*Parágrafo abaixo do chamativo*/
+.descrition {
+    display: flex;
+    padding: 0px 800px 0px 20px;
+    
+}
+
+/*Botão Shop Now*/
+.buy {
+    display: inline-block;
+    background-color: black;
+    padding: 10px;
+    border-radius: 20px;
+    color: white;
+    text-align: center;
+    margin: 10px;
+    margin-left: 60px;
+}
+a {
+    text-decoration: none;
+}
+/*Organizando as informações de confiança*/
+.container-2 {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+}
+
+.especification {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    justify-content: space-evenly;
+    padding-right: 50px;
+}
+ul > div {
+    padding-right: 50px;
+}
+.align {
+    display: flex;
+    padding-left: 20px;
+    font-size: 25px;
+    font-weight: 80;
+}
+.inlet {
+    background-color: rgba(0, 0, 0, 0.242);
+    height: 70px;
+    color: rgba(0, 0, 0, 0);
+    margin-bottom: 5px;
+    border-radius: 10px;
+    margin-right: 12px;
+}
+
+div {
+    padding-bottom: 15px;
+}
+
+/*Trabalhando com as marcas*/
+.mark {
+    display: flex;
+    margin:auto;
+    background-color: black;
+    padding: 15px;
+    justify-content: space-evenly;
+}
+
+.item {
+    color: white;
+    justify-content: center;
+    align-items: center;
+}
+/*Fonte da Versace*/
+.font-01 {
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: 400;
+}
+/*Fonte da Zara*/
+.font-02 {
+    font-family: ;
+}
+/*Fonte da Gucci*/
+.font-03 {
+    font-family: ;
+}
+/*Fonte da Prada*/
+.font-04 {
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 800;
+}
+/*Fonte da Calvin Klein*/
+.font-05 {
+    font-family: Didot;
+    font-weight: 100;
+}
+
+/*Criando as estruturas das roupas*/
+.dress {
+    background-color: rgba(128, 128, 128, 0.263);
+    height: 340px;
+    width: 350px;
+    border-radius: 20px;
+    border-left: 15px;
+    border: 1px solid rgba(0, 0, 0, 0.157);
+    box-shadow: 2px 2px 2px 1px rgba(0, 0, 0, 0.394);
+    margin-left: 10px;
+    margin-bottom: 70px;
+}
+
+main > div {
+    margin-top: 20px;
+}
+
+
+.drips {
+    display: flex;
+    justify-content: space-evenly;
+
+}
+
+.price {
+    font-size: 20px;
+    font-weight: 700;
+    margin-top: 5px;
+}
+
+/*Organizando os subtítulos*/
+.title {
+    text-align: center;
+    font-size: 30px;
+    margin-top: 15px;
+    text-shadow: 1px 1px 1px  rgba(0, 0, 0, 0.393);
+}
+
+/*Botão View All*/
+.more-information {
+    background-color: white;
+    text-align: center;
+    border-radius: 20px;
+    border: 1px solid rgba(0, 0, 0, 0.246);
+    padding: 10px;
+    box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.418);
+    width: 400px;
+    margin-left: 35%;
+    text-align: center;
+    margin-top: 20px;
+}
+
+h3 > a {
+    color: black;
+}
+
+/*Trabalhando as Categorias*/
+.all-category {
+    background-color: rgba(128, 128, 128, 0.372);
+    border-radius: 30px;
+    margin: 50px 70px;
+    box-shadow: 1px 1px 1px black;
+    width: 1220px;
+}
+
+.category {
+    display: flex;
+    justify-content: space-between;
+    background-color: white;
+    width: 500px;
+    border: 1px solid rgba(0, 0, 0, 0.326);
+    border-radius: 30px;
+    box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.324);
+    margin: 5px 10px;
+}
+
+.category-text {
+    padding: 20px;
+    font-size: 30px;
+    
+}
+
+.board {
+    display: flex;
+}
+
+.partygym {
+    display: flex;
+} 
+
+/*Trabalando nos Comentários*/
+.customers {
+    box-shadow: 1px 1px 1px black;
+    border: 1px solid rgba(0, 0, 0, 0.168);
+    width: 400px;
+    height: 130px; 
+    border-radius: 15px;
+    margin: 10px;
+    padding: 10px;
+}
+
+.litle-text {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: small;
+}
+
+.customers-name {
+    font-weight: 600;
+}
+
+#all-customers {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+/*Rodapé*/
+/*Caixa de Subscrição*/
+#subscribe {
+    display: flex;
+    justify-content: space-between;
+    background-color: black;
+    height: 150px;
+    width: 1200px;
+    color: white;
+    border-radius: 20px;
+    margin: 10px 30px 10px 60px;
+    padding: 20px;
+    box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.383);
+}
+
+.stay {
+    font-weight: 900;
+    padding-top: 20px;
+    font-size: 2em;
+    width: 400px;
+}
+
+.registe {
+    display: flex;
+    flex-direction: column;
+
+}
+
+.inside {
+    background-color: white;
+    color: rgba(0, 0, 0, 0.338);
+    padding: 5px;
+    border-radius: 20px;
+    margin: 10px 5px;
+    width: 250px;
+    height: 30px;
+    text-align: center;
+}
