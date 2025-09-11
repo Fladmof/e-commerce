@@ -54,12 +54,33 @@ ul {
     padding-top: 20px;
 }
 
+/*Fazendo a imagem ficar por baixo do parágrafo*/
+.under {
+    position: relative;
+    width: 100%;
+}
+
+.under img {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.text-up-image {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: black;
+    font-weight: bold;
+} 
+
 /*Parágrafo Chamativo*/
 .atention {
-    margin-top: 30px;
+    margin-bottom: 10px;
+    margin-top: 10px;
     font-size: 50px;
     font-weight: 900;
-
     width: 600px;
     padding-left: 20px;
 }
@@ -75,12 +96,20 @@ ul {
 .buy {
     display: inline-block;
     background-color: black;
-    padding: 10px;
-    border-radius: 20px;
+    width: 210px;
+    height: 52px;
+    padding: 5px 30px;
+    border-radius: 60px;
+    font-family: sans-serif;
+    font-weight: 500;
+    font-size: 16px;
+    margin-top: 15px;
     color: white;
     text-align: center;
     margin: 10px;
-    margin-left: 60px;
+    font-size: 14px;
+    text-align: center;
+    border: none;
 }
 a {
     text-decoration: none;
@@ -143,11 +172,11 @@ div {
 }
 /*Fonte da Zara*/
 .font-02 {
-    font-family: ;
+    
 }
 /*Fonte da Gucci*/
 .font-03 {
-    font-family: ;
+    
 }
 /*Fonte da Prada*/
 .font-04 {
