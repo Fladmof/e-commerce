@@ -19,9 +19,14 @@ a {
 
 /*Criando o navegador*/
 .container {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 2fr 3fr;
+    margin: auto;
+    width: 1240px;
+    height: 48px;
     justify-content: space-between;
     padding: 8px;
+    align-items: center;
 }
 
 ul {
@@ -36,21 +41,41 @@ ul {
 }
 
 /*Criando a barra de pesquisa*/
+
+.barra {
+    display: flex;
+    align-items: center;
+    background-color: #f2f2f2;
+    border-radius: 50px;
+    padding: 0 24px;
+    height: 52px;
+    gap: 16px;
+    width: 500px;
+}
+
 #search {
-    border-radius: 20px;
-    width: 300px;
-    margin-bottom: 10px;
-    padding: 4px;
-    padding-left: 10px;
+    width: 100%;
+    outline: none;
+    border: none;
+    background: transparent;
 }
 
 #button {
+    outline: none;
+    border: none;
+    background: transparent;
     text-decoration: none;
 }
+
+.search-login {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
 /*Fundo diferente*/
 .atration {
     flex-wrap: wrap;
-    background-color: rgba(128, 128, 128, 0.338);
     padding-top: 20px;
 }
 
@@ -155,9 +180,11 @@ div {
 .mark {
     display: flex;
     margin:auto;
+    height: 30px;
     background-color: black;
     padding: 15px;
     justify-content: space-evenly;
+
 }
 
 .item {
