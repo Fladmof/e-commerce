@@ -5,6 +5,10 @@
     padding: 0%;
 }
 
+header {
+    min-width: 100%;
+}
+
 /*Criando a parte de cima do cabeçalho*/
 .invite {
     background-color: black;
