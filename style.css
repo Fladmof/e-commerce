@@ -6,7 +6,7 @@
 }
 
 header {
-    min-width: 100%;
+    min-width: 100vh;
 }
 
 /*Criando a parte de cima do cabeçalho*/
