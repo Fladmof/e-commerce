@@ -84,6 +84,11 @@ ul {
 }
 
 /*Fazendo a imagem ficar por baixo do parágrafo*/
+#coupleImage {
+     width: 100%;
+}
+
+
 .under {
     position: relative;
     width: 100%;
