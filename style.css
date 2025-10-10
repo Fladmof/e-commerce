@@ -1,380 +1,425 @@
 @charset "UTF-8";
-
+/*Configurações Globais*/
 * {
-    margin: 0%;
-    padding: 0%;
+    margin: 0;    
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    display: flex;
+    flex: 1 1 100vw;
+    flex-wrap: wrap;
+    flex-direction: row;
+}
+
+/*Cabelçalho*/
+#set-off {
+    flex: 1 1 100vw;
+    background-color: black;
+    color: white;
+    padding: 5px;
+    text-align: center;
+}
+/*Botão para remover a promoção*/
+#proposal {
+    width: 100%;    
+}
+#remove {
+    background: transparent;
+    color: white;
+    border: none;
+    margin-left: 30px;
+    font-size: 15pt;
+    cursor: pointer;
+}
+
+/*Marca e Botão*/
+#marcaBotao {
+    display: flex;
+    flex-direction: row;
+}
+/*Icon de Usuário e compras*/
+.icon {
+    margin: 5px 10px;
+    font-weight: bold;
+}
+/*id do link dentro do parágrafo*/
+#i-link {
+    color: white;
+    padding-left: 5px;
 }
 
 header {
-    min-width: 100vh;
-}
-
-/*Criando a parte de cima do cabeçalho*/
-.invite {
-    background-color: black;
-    color: white;
-    text-align: center;
-    padding: 5px;
-}
-
-a {
-    color: white;
-}
-
-/*Criando o navegador*/
-.container {
-    display: grid;
-    grid-template-columns: 1fr 2fr 3fr;
-    margin: auto;
-    width: 1240px;
-    height: 48px;
-    justify-content: space-between;
-    padding: 8px;
-    align-items: center;
-}
-
-ul {
+    flex-wrap: wrap;
     display: flex;
-    list-style-type: none;
+    flex: 1 1 100vw;
+    justify-content: space-between;
 }
-
-.menu {
-    margin-right: 15px;
+/*Logo*/
+h1 {
+    color: black;
+    padding-left: 10px;
+    width: 150px;
+}
+/*Menu*/
+nav {
+    color: black;
+    margin:5px 20px 10px 0px;
+    font-size: 15pt;
+}
+nav > a {
+    margin: 5px 10px 0px 10px;
     text-decoration: none;
     color: black;
 }
-
-/*Criando a barra de pesquisa*/
-
-.barra {
+/*Barra de Pesquisa*/
+/*Div que contém o botão e o input de pesquisa*/
+#ucp {
     display: flex;
-    align-items: center;
-    background-color: #f2f2f2;
-    border-radius: 50px;
-    padding: 0 24px;
-    height: 52px;
-    gap: 16px;
-    width: 500px;
+    flex-direction: row;
 }
 
-#search {
-    width: 100%;
-    outline: none;
-    border: none;
-    background: transparent;
-}
-
-#button {
-    outline: none;
-    border: none;
-    background: transparent;
-    text-decoration: none;
-}
-
-.search-login {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-/*Fundo diferente*/
-.atration {
-    flex-wrap: wrap;
-    padding-top: 20px;
-}
-
-/*Fazendo a imagem ficar por baixo do parágrafo*/
-#coupleImage {
-     width: 100%;
-}
-
-
-.under {
+#searchmenu {
+    width: 400px;
     position: relative;
-    width: 100%;
+    background-color: rgba(211, 199, 199, 0.308);
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin: 5px 20px;
+    height: 35px;    
+}
+/*Botão com a imagem de Lupa*/
+#lupa {
+    display: none;
 }
 
-.under img {
-    width: 100%;
-    height: 100%;
+button#search {
+    outline: none;
+    border: none;
+    background: transparent;
+    cursor: pointer;    
+}
+/*Input da barra de pesquisa*/
+#inletsearch {
+    border: none;
+    outline: none;
+    flex-grow: 1;
+    flex-shrink: 1;
+    color: black;
+    position: absolute;
+    top: 25%;
+    left: 40px;
+    background: transparent;
+}
+/*Conteúdo do site*/
+main {
+    display: flex;
+    flex: 1 1 100vw;
+    flex-wrap: wrap;
+    flex-direction: column;
+}
+/*Trabalhando as imagens*/
+
+#coupleImage {
+    max-width: 100%;
+    height: auto;
     display: block;
 }
+#call-letters {
+    position: relative;
+    background-color: rgba(128, 128, 128, 0.219);
+}
 
-.text-up-image {
+#letters {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: black;
+    top: 20%;
+    left: 5%;
+    max-width: 650px;
+}
+
+#main-letters {
+    font-size: 45pt;
     font-weight: bold;
-} 
-
-/*Parágrafo Chamativo*/
-.atention {
-    margin-bottom: 10px;
-    margin-top: 10px;
-    font-size: 50px;
-    font-weight: 900;
-    width: 600px;
-    padding-left: 20px;
 }
-
-/*Parágrafo abaixo do chamativo*/
-.descrition {
-    display: flex;
-    padding: 0px 800px 0px 20px;
-    
-}
-
-/*Botão Shop Now*/
-.buy {
-    display: inline-block;
-    background-color: black;
-    width: 210px;
-    height: 52px;
-    padding: 5px 30px;
-    border-radius: 60px;
-    font-family: sans-serif;
-    font-weight: 500;
-    font-size: 16px;
-    margin-top: 15px;
-    color: white;
-    text-align: center;
-    margin: 10px;
-    font-size: 14px;
-    text-align: center;
-    border: none;
-}
-a {
-    text-decoration: none;
-}
-/*Organizando as informações de confiança*/
-.container-2 {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px;
-}
-
-.especification {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    justify-content: space-evenly;
-    padding-right: 50px;
-}
-ul > div {
-    padding-right: 50px;
-}
-.align {
-    display: flex;
-    padding-left: 20px;
-    font-size: 25px;
-    font-weight: 80;
-}
-.inlet {
-    background-color: rgba(0, 0, 0, 0.242);
-    height: 70px;
-    color: rgba(0, 0, 0, 0);
-    margin-bottom: 5px;
-    border-radius: 10px;
-    margin-right: 12px;
-}
-
-div {
-    padding-bottom: 15px;
-}
-
-/*Trabalhando com as marcas*/
-.mark {
-    display: flex;
-    margin:auto;
-    height: 30px;
-    background-color: black;
-    padding: 15px;
-    justify-content: space-evenly;
-
-}
-
-.item {
-    color: white;
-    justify-content: center;
-    align-items: center;
-}
-/*Fonte da Versace*/
-.font-01 {
-    font-family: Arial, Helvetica, sans-serif;
-    font-weight: 400;
-}
-/*Fonte da Zara*/
-.font-02 {
-    
-}
-/*Fonte da Gucci*/
-.font-03 {
-    
-}
-/*Fonte da Prada*/
-.font-04 {
-    font-family: 'Times New Roman', Times, serif;
-    font-weight: 800;
-}
-/*Fonte da Calvin Klein*/
-.font-05 {
-    font-family: Didot;
-    font-weight: 100;
-}
-
-/*Criando as estruturas das roupas*/
-.dress {
-    background-color: rgba(128, 128, 128, 0.263);
-    height: 340px;
-    width: 350px;
-    border-radius: 20px;
-    border-left: 15px;
-    border: 1px solid rgba(0, 0, 0, 0.157);
-    box-shadow: 2px 2px 2px 1px rgba(0, 0, 0, 0.394);
-    margin-left: 10px;
-    margin-bottom: 70px;
-}
-
-main > div {
-    margin-top: 20px;
-}
-
-
-.drips {
-    display: flex;
-    justify-content: space-evenly;
-
-}
-
-.price {
-    font-size: 20px;
-    font-weight: 700;
-    margin-top: 5px;
-}
-
-/*Organizando os subtítulos*/
-.title {
-    text-align: center;
-    font-size: 30px;
-    margin-top: 15px;
-    text-shadow: 1px 1px 1px  rgba(0, 0, 0, 0.393);
-}
-
-/*Botão View All*/
-.more-information {
-    background-color: white;
-    text-align: center;
-    border-radius: 20px;
-    border: 1px solid rgba(0, 0, 0, 0.246);
-    padding: 10px;
-    box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.418);
-    width: 400px;
-    margin-left: 35%;
-    text-align: center;
-    margin-top: 20px;
-}
-
-h3 > a {
-    color: black;
-}
-
-/*Trabalhando as Categorias*/
-.all-category {
-    background-color: rgba(128, 128, 128, 0.372);
-    border-radius: 30px;
-    margin: 50px 70px;
-    box-shadow: 1px 1px 1px black;
-    width: 1220px;
-}
-
-.category {
-    display: flex;
-    justify-content: space-between;
-    background-color: white;
+.down-letters {
     width: 500px;
-    border: 1px solid rgba(0, 0, 0, 0.326);
+}
+/*Botão de comprar agora*/
+#btnBuy {
+    border: none;
+    background: transparent;
+    color: white;
+    background-color: black;
+    padding: 0 40px;
+    height: 50px;
     border-radius: 30px;
-    box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.324);
-    margin: 5px 10px;
+    width: 200px;
+    margin-left: 20px;
+    margin-top: 20px;
+    cursor: pointer;
+}
+/*Informações sobre o alcance das marcas*/
+#information {
+    display: flex;
+    width: 100vw;
+    margin: auto;
+    gap: 23px;
+    font-size: 15pt;
+    flex-wrap: wrap;
+    margin: 20px 0px;
 }
 
-.category-text {
+/*Trabalhando com as Marcas*/
+#marcas {
+    background-color: black;
+    color: white;
+    display: flex;
+    flex-direction:row;
+    flex-wrap: wrap;
     padding: 20px;
-    font-size: 30px;
-    
+    gap: 40px;
+    justify-content: center;
 }
-
-.board {
-    display: flex;
+.marca {
+    font-size: 15pt;
+    padding: 0px 20px;
 }
-
-.partygym {
-    display: flex;
-} 
-
-/*Trabalando nos Comentários*/
-.customers {
-    box-shadow: 1px 1px 1px black;
-    border: 1px solid rgba(0, 0, 0, 0.168);
-    width: 400px;
-    height: 130px; 
-    border-radius: 15px;
-    margin: 10px;
-    padding: 10px;
+/*Trabalhando com os produtos*/
+h2 {
+    text-align: center;
+    font-size: 30pt;
+    margin: 80px 0px 30px 0px;
 }
-
-.litle-text {
-    font-family: 'Courier New', Courier, monospace;
-    font-size: small;
-}
-
-.customers-name {
-    font-weight: 600;
-}
-
-#all-customers {
+#produtos {
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
+    gap: 25px;
+}
+.produtos {
+    background-color: rgba(128, 128, 128, 0.24);
+    width: 250px;
+    height: 280px;
+    border-radius: 20px;
+    margin-top: 10px;
+}
+.roupas {
+    width: 250px;
+}
+.descrition {
+    margin: 10px;
+}
+/*Trabalhando com o Ver mais*/
+#mais {
+    border: 1px solid rgba(0, 0, 0, 0.356);
+    text-align: center;
+    padding: 10px;
+    width: 400px;
+    margin: auto;
+    border-radius: 20px;
+    display: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+#openMenu, #closeMenu {
+    border: none;
+    background: none;
+    font-size: 30px;
+    font-weight: bold;
+    padding: 0px 5px;
+    cursor: pointer;
+    display: none;
+    cursor: pointer;
+}
+
+@media only screen and (max-width: 1139px) {
+    #openMenu, #closeMenu {
+        display: block;
+    }
+
+    #closeMenu {
+        position: absolute;
+        right: 15px;
+        top: 25px;
+        display: none;
+    }
+
+    nav {
+        position: fixed;
+        flex-direction: column;
+        width: 100vw;
+        height: 100vh;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        display: none;
+        background-color: rgba(255, 255, 255, 0.966);
+    }
+
+    #searchmenu {
+        display: none;
+    }
+
+    #letters {
+        position: absolute;
+        top: 16%;
+        left: 5%;
+        max-width: 500px;
+    }
+
+    #main-letters {
+        font-size: 40pt;
+        font-weight: bold;
+    }
+    .down-letters {
+        width: 300px;
+    }
+}
+
+@media only screen and (max-width: 880px) {
+    #lupa {
+        display: inline;
+    }
+
+    #letters {
+        position: absolute;
+        top: 12%;
+        left: 5%;
+        max-width: 300px;
+    }
+
+    #main-letters {
+        font-size: 28pt;
+        font-weight: bold;
+    }
+
+    .down-letters {
+        width: 300px;
+        font-size: 10pt;
+    }
+}
+
+@media only screen and (max-width: 714px) {
+    #main-letters {
+        font-weight: 20pt;
+    }
+
+    .down-letters {
+        width: 180px;
+        font-size: 9pt;
+    }
+}
+
+@media only screen and (max-width: 675px) {
+    #letters {
+        position: relative;
+    }
+
+    #main-letters {
+        margin-top: -20px;
+        width: 90vw;
+        margin: auto;
+    }
+
+    .down-letters {
+        width: 80vw;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    #btnBuy {
+        width: 450px;
+        margin: auto;
+    }
+    #information {
+        display: flex;
+        justify-content: center;
+        width: 80vw;
+    }
+    .call-letters {
+        background-color: rgba(128, 128, 128, 0.233);
+        padding-bottom: 30px;
+    }
+    #produtos {
+        gap: 5px;
+    }
+    #roupas {
+        height: 120px;
+    }
+
+    #mais {
+        display: block;
+    }
+    .oculto {
+        display: none;
+    }
+}
+/*Conteúdo Adiciconal*/
+aside {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-sizing: border-box;
+    max-width: 100%;
+}
+/*Trabalhando com o Navegador de Roupas*/
+#allDress {
+    box-sizing: border-box;
+    display: flex;
+    flex: 1 1;
+    flex-wrap: wrap;
+    background-color: rgba(128, 128, 128, 0.315);
+    border-radius: 30px;
+    padding: 20px;
+    margin: 30px 5%;
+    justify-content: center;
+    align-items: center;
+    margin: auto;
+}
+#informal {
+    display: flex;
+    background-color: white;
+    margin: 10px;
+    border-radius: 30px;
+    box-shadow: 1px 1px 1px 1px rgba(0, 0, 0, 0.616);
+    flex-basis: 550px;
+}
+#formal {
+    display: flex;
+    flex-basis: 450px;
+    background-color: white;
+    margin: 10px;
+    border-radius: 30px;
+    box-shadow: 1px 1px 1px 1px rgba(0, 0, 0, 0.616);
+}
+#festa {
+    display: flex;
+    background-color: white;
+    width: 450px;
+    margin: 10px;
+    border-radius: 30px;
+    box-shadow: 1px 1px 1px 1px rgba(0, 0, 0, 0.616);
+}
+#ginasio {
+    display: flex;
+    background-color: white;
+    margin: 10px;
+    border-radius: 30px;
+    box-shadow: 1px 1px 1px 1px rgba(0, 0, 0, 0.616);
+    flex-basis: 550px;
+}
+.dressInformation {
+    padding: 20px;
+    font-weight: bold;
+    font-size: 25pt;
+    box-shadow: 1px 1px 1px 1px rgba(0, 0, 0, 0.616);
 }
 
 /*Rodapé*/
-/*Caixa de Subscrição*/
-#subscribe {
+footer {
     display: flex;
-    justify-content: space-between;
+    flex: 1 1 100vw;
+    height: 100px;
     background-color: black;
-    height: 150px;
-    width: 1200px;
-    color: white;
-    border-radius: 20px;
-    margin: 10px 30px 10px 60px;
-    padding: 20px;
-    box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.383);
-}
-
-.stay {
-    font-weight: 900;
-    padding-top: 20px;
-    font-size: 2em;
-    width: 400px;
-}
-
-.registe {
-    display: flex;
-    flex-direction: column;
-
-}
-
-.inside {
-    background-color: white;
-    color: rgba(0, 0, 0, 0.338);
-    padding: 5px;
-    border-radius: 20px;
-    margin: 10px 5px;
-    width: 250px;
-    height: 30px;
-    text-align: center;
 }
