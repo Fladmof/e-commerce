@@ -11,6 +11,8 @@ body {
     flex: 1 1 100vw;
     flex-wrap: wrap;
     flex-direction: row;
+    gap: 20px;
+    overflow-x: hidden;
 }
 
 /*Cabelçalho*/
@@ -18,14 +20,18 @@ body {
     flex: 1 1 100vw;
     background-color: black;
     color: white;
-    padding: 5px;
+    padding: 19px 5px;
     text-align: center;
+    width: 100vw;
 }
 /*Botão para remover a promoção*/
 #proposal {
     width: 100%;    
+    position: relative;
 }
 #remove {
+    position: absolute;
+    transform: translate(290px, 1px);
     background: transparent;
     color: white;
     border: none;
@@ -54,40 +60,78 @@ header {
     flex-wrap: wrap;
     display: flex;
     flex: 1 1 100vw;
+    align-items: center;
     justify-content: space-between;
+    margin-top: 5px;
+    padding: 0px 80px;
+    height: 48px;
+    width: 100vw;
 }
 /*Logo*/
 h1 {
     color: black;
     padding-left: 10px;
     width: 150px;
+    font-family: integral CF;
+    font-weight: 700;
+    font-style: bold;
+    font-size: 2em;
+    justify-content: center;
 }
 /*Menu*/
 nav {
     color: black;
-    margin:5px 20px 10px 0px;
-    font-size: 15pt;
+    font-size: 1em;
+    width: 321px;
+    height: 22px;
+    font-weight: 400;
+    margin: 10px 0px 0px 10px;
+    transition: transform 0.3s ease-in;
 }
 nav > a {
-    margin: 5px 10px 0px 10px;
     text-decoration: none;
     color: black;
+    height: 56px;
+    font-weight: 400;
+    font-size: 1em;
+    width: 100%;
+    margin-right: 10px;
+}
+/*Botão com mais informações*/
+#maisProdutos {
+    transform: rotate(30px);
+    background: transparent;
+    border: none;
+    margin-left: 3px;
+    font-weight: bold;
+    font-size: 1em;
 }
 /*Barra de Pesquisa*/
 /*Div que contém o botão e o input de pesquisa*/
 #ucp {
     display: flex;
     flex-direction: row;
+    position: relative;
+    margin-top: 5px;
 }
-
+#imageSearch {
+    position: absolute;
+    transform: translate(8px, -5px);
+    width: 24px;
+    height: 24px;
+}
+#inletsearch {
+    position: absolute;
+    transform: translate(10px, 5px);
+}
 #searchmenu {
-    width: 400px;
+    position: relative;
+    min-width: 577px;
     position: relative;
     background-color: rgba(211, 199, 199, 0.308);
     padding: 3px 10px;
-    border-radius: 20px;
-    margin: 5px 20px;
-    height: 35px;    
+    border-radius: 62px;
+    height: 48px;    
 }
 /*Botão com a imagem de Lupa*/
 #lupa {
@@ -112,18 +156,25 @@ button#search {
     left: 40px;
     background: transparent;
 }
+/*Icones de pesquisa e outras coisas*/
+#icon {
+    margin-top: 7px;
+}
 /*Conteúdo do site*/
 main {
     display: flex;
     flex: 1 1 100vw;
     flex-wrap: wrap;
     flex-direction: column;
+    width: 100vw;
+    justify-content: center;
 }
 /*Trabalhando as imagens*/
-
+#couple {
+    background-color: rgba(128, 128, 128, 0.288);
+}
 #coupleImage {
     max-width: 100%;
-    height: auto;
     display: block;
 }
 #call-letters {
@@ -133,17 +184,19 @@ main {
 
 #letters {
     position: absolute;
-    top: 20%;
-    left: 5%;
+    top: 40%;
+    left: 6.5%;
     max-width: 650px;
 }
 
 #main-letters {
     font-size: 45pt;
     font-weight: bold;
+    max-width: 577px;
 }
 .down-letters {
-    width: 500px;
+    margin-top: 20px;
+    max-width: 545px;
 }
 /*Botão de comprar agora*/
 #btnBuy {
@@ -158,6 +211,7 @@ main {
     margin-left: 20px;
     margin-top: 20px;
     cursor: pointer;
+    margin-bottom: 35px;
 }
 /*Informações sobre o alcance das marcas*/
 #information {
@@ -179,7 +233,10 @@ main {
     flex-wrap: wrap;
     padding: 20px;
     gap: 40px;
-    justify-content: center;
+    justify-content: space-evenly;
+    height: 122px;
+    align-items: center;
+    width: 100vw;
 }
 .marca {
     font-size: 15pt;
@@ -187,41 +244,82 @@ main {
 }
 /*Trabalhando com os produtos*/
 h2 {
+    width: 100vw;
     text-align: center;
-    font-size: 30pt;
+    font-size: 48px;
+    font-weight: 700;
     margin: 80px 0px 30px 0px;
 }
 #produtos {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 25px;
+    width: 100vw;
 }
 .produtos {
     background-color: rgba(128, 128, 128, 0.24);
-    width: 250px;
-    height: 280px;
+    width: 295px;
+    height: 298px;
     border-radius: 20px;
-    margin-top: 10px;
+    margin: 10px 5px 10px 5px;
 }
+
 .roupas {
-    width: 250px;
+    width: 295px;
+    height: 298px;
 }
 .descrition {
     margin: 10px;
 }
+#oculto {
+    display: flex;
+    flex-wrap: wrap;
+    width: 50%;
+    box-sizing: border-box;
+    gap: 25px;
+}
+/*Trabalhando os Descontos das Roupas*/
+.dwd {
+    display: flex;
+    gap: 10px;
+    width: 200px;
+    height: 32px;
+    margin-top: 5px;
+}
+.antigoP {
+    text-decoration: line-through;
+    color: rgba(0, 0, 0, 0.37);
+    font-weight: bold;
+    font-size: 24px;
+}
+.percentagemD {
+    background-color: #ff33331e;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 30px;
+    color: #FF3333;
+    font-size: 12px;
+}
+.preco {
+    font-weight: 700;
+    font-size: 24px;
+}
 /*Trabalhando com o Ver mais*/
-#mais {
+.mais {
     border: 1px solid rgba(0, 0, 0, 0.356);
     text-align: center;
-    padding: 10px;
-    width: 400px;
-    margin: auto;
-    border-radius: 20px;
-    display: none;
+    padding: 16px 54px;
+    margin: 50px auto;
+    border-radius: 62px;
     background: transparent;
     cursor: pointer;
+    justify-content: center;
+    display: flex;
+    flex: 1 1 ;
+    align-items: center;
 }
+/*LInha Divisória*/
 
 #openMenu, #closeMenu {
     border: none;
@@ -249,13 +347,14 @@ h2 {
     nav {
         position: fixed;
         flex-direction: column;
-        width: 100vw;
-        height: 100vh;
+        width: 110%;
+        height: 3000px;
         align-items: center;
         justify-content: center;
         margin: 0;
         display: none;
-        background-color: rgba(255, 255, 255, 0.966);
+        background-color: rgba(143, 135, 135, 0.959);
+        z-index: 0;
     }
 
     #searchmenu {
@@ -275,6 +374,12 @@ h2 {
     }
     .down-letters {
         width: 300px;
+    }
+    #oculto {
+        display: flex;
+        gap: 1%;
+        flex-direction: column;
+        width: 100%;
     }
 }
 
@@ -313,6 +418,9 @@ h2 {
 }
 
 @media only screen and (max-width: 675px) {
+    #set-off {
+        display: none;
+    }
     #letters {
         position: relative;
     }
@@ -350,9 +458,16 @@ h2 {
 
     #mais {
         display: block;
+        
     }
-    .oculto {
+    .mais {
+        width: 400px;
+    }
+    #oculto {
         display: none;
+    }
+    #marcas > img {
+        width: 116.74px;
     }
 }
 /*Conteúdo Adiciconal*/
@@ -360,66 +475,234 @@ aside {
     display: flex;
     justify-content: center;
     align-items: center;
-    box-sizing: border-box;
-    max-width: 100%;
+    flex-direction: row;
+    width: 100%;
+    flex-wrap: wrap;
 }
 /*Trabalhando com o Navegador de Roupas*/
 #allDress {
-    box-sizing: border-box;
     display: flex;
-    flex: 1 1;
     flex-wrap: wrap;
-    background-color: rgba(128, 128, 128, 0.315);
-    border-radius: 30px;
-    padding: 20px;
-    margin: 30px 5%;
+    flex-direction: row;
+    background-color: #F0F0F0;
+    border-radius: 40px;
     justify-content: center;
     align-items: center;
-    margin: auto;
+    width: 90%;
+    gap: 15px;
 }
 #informal {
     display: flex;
     background-color: white;
-    margin: 10px;
-    border-radius: 30px;
-    box-shadow: 1px 1px 1px 1px rgba(0, 0, 0, 0.616);
-    flex-basis: 550px;
+    border-radius: 20px;
+    height: 289px;
+    flex-basis: 407px;
+    width: 100%;
 }
 #formal {
     display: flex;
-    flex-basis: 450px;
+    flex-basis: 684px;
     background-color: white;
-    margin: 10px;
-    border-radius: 30px;
-    box-shadow: 1px 1px 1px 1px rgba(0, 0, 0, 0.616);
+    border-radius: 20px;
+    height: 289px;
+    width: 100%;
 }
 #festa {
     display: flex;
     background-color: white;
-    width: 450px;
-    margin: 10px;
-    border-radius: 30px;
-    box-shadow: 1px 1px 1px 1px rgba(0, 0, 0, 0.616);
+    flex-basis: 684px;
+    border-radius: 20px;
+    height: 289px;
 }
 #ginasio {
     display: flex;
     background-color: white;
-    margin: 10px;
-    border-radius: 30px;
-    box-shadow: 1px 1px 1px 1px rgba(0, 0, 0, 0.616);
-    flex-basis: 550px;
+    border-radius: 20px;
+    flex-basis: 407px;
+    height: 289px;
 }
 .dressInformation {
     padding: 20px;
     font-weight: bold;
     font-size: 25pt;
-    box-shadow: 1px 1px 1px 1px rgba(0, 0, 0, 0.616);
 }
 
+/*Eleborando os Comentários*/
+#comebtn {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    margin: 50px 20px;
+}
+#btnTrocar {
+    display: flex;
+    gap: 10px;
+    margin-right: 50px;
+}
+.btnTrocar {
+    border: none;
+    background: transparent;
+    font-weight: 700;
+    font-size: 40px;
+    cursor: pointer;
+}
+section {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    flex-direction: row;
+}
+#comentariosGeral {
+    display: flex;
+    gap: 10px;
+    margin: 50px auto;
+    max-width: 90%;
+    overflow: auto;
+    justify-content: center;
+    align-items: center;
+    overflow: auto;
+}
+#comentariosGeral::-webkit-scrollbar {
+    display: none;
+}
+#comenTitu {
+    display: flex;
+    width: 100%;
+    text-align: center;
+    margin-left: 50px;
+    font-weight: 700;
+    font-size: 48px;
+}
+.comentarios {
+    flex-direction: column;
+    border: 1px solid rgba(0, 0, 0, 0.144);
+    height: 240px;
+    padding: 28px 32px;
+    border-radius: 20px;
+    flex: 0 0 400px;
+}
+.compradores {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+.opniaoClientes {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+/*Trabalhando a parte da Subiscrição*/
+#subiscricacao {
+    display: flex;
+    flex-wrap: wrap;
+    background-color: black;
+    color: white;
+    border-radius: 30px;
+    padding: 36px 64px;
+    width: 80%;
+    margin: auto;
+    justify-content: space-between;
+}
+/*o Input do Email*/
+
+#divulOfertas {
+    display: flex;
+    font-size: 40px;
+    width: 450px;
+}
+#inputEmailBotao {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    align-items: center;
+    flex-basis: 30%;
+    height: 100%;
+    margin-left: 50px;
+}
+#inputEmail {
+    display: flex;
+    flex: 1 1 100%;
+    background-color: white;
+    border-radius: 20px;
+    padding: 10px 0px 0px 15px;
+    margin-bottom: 10px;
+    height: 40px;
+    justify-content: center;
+    align-items: center;
+}
+#realInput {
+    border: none;
+    background-color: transparent;
+    outline: none;
+    margin-bottom: 5px;
+    width:80%;
+    height: 100%;
+    margin-left: 25px;
+}
+#bigSubmit {
+    display: flex;
+    flex: 1 1 100%;
+    border-radius: 30px;
+    background-color: white;
+    color: black;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+#submit {
+    border: none;
+    background: transparent;
+    color: black;
+    padding: 10px;
+    cursor: pointer;
+}
 /*Rodapé*/
 footer {
     display: flex;
-    flex: 1 1 100vw;
-    height: 100px;
-    background-color: black;
+    flex-wrap: wrap;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100vw;
+    background-color: white;
+    margin-left: 10px;
+}
+#icon2 {
+    width: 100%;
+}
+.redeSociais {
+    width: 28px;
+    height: 28px;
+    margin: 2px;
+}
+.cartoes {
+    width: 46.61px;
+    height: 30.03;
+}
+picture {
+    width: 100vw;
+    display: flex;
+    justify-content: right;
+    align-items: start;
+}
+/*Informações da Empresa*/
+article {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+    gap: 50px;
+    margin-top: 10px;
+}
+.grelha {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    height: 248px;
+    width: 177px;
+}
+#reservados {
+    width: 80%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    margin-bottom: 100px;
 }
