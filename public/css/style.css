@@ -1,0 +1,701 @@
+@charset "UTF-8";
+/*Configurações Globais*/
+* {
+    margin: 0;    
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    display: flex;
+    flex: 1 1 100vw;
+    flex-wrap: wrap;
+    flex-direction: row;
+    gap: 20px;
+    overflow-x: hidden;
+}
+
+/*Conteúdo do site*/
+main {
+    display: flex;
+    flex: 1 1 100vw;
+    flex-wrap: wrap;
+    flex-direction: column;
+    width: 100vw;
+    justify-content: center;
+}
+/*Trabalhando as imagens*/
+#couple {
+    background-color: rgba(128, 128, 128, 0.288);
+}
+#coupleImage {
+    max-width: 100%;
+    display: block;
+}
+#call-letters {
+    position: relative;
+    background-color: rgba(128, 128, 128, 0.219);
+}
+
+#letters {
+    position: absolute;
+    top: 40%;
+    left: 6.5%;
+    max-width: 650px;
+}
+
+#main-letters {
+    font-size: 45pt;
+    font-weight: bold;
+    max-width: 577px;
+}
+.down-letters {
+    margin-top: 20px;
+    max-width: 545px;
+}
+/*Botão de comprar agora*/
+#btnBuy {
+    border: none;
+    background: transparent;
+    color: white;
+    background-color: black;
+    padding: 0 40px;
+    height: 50px;
+    border-radius: 30px;
+    width: 200px;
+    margin-left: 20px;
+    margin-top: 20px;
+    cursor: pointer;
+    margin-bottom: 35px;
+}
+/*Informações sobre o alcance das marcas*/
+#information {
+    display: flex;
+    width: 100vw;
+    margin: auto;
+    gap: 23px;
+    font-size: 15pt;
+    flex-wrap: wrap;
+    margin: 20px 0px;
+}
+
+/*Trabalhando com as Marcas*/
+#marcas {
+    background-color: black;
+    color: white;
+    display: flex;
+    flex-direction:row;
+    flex-wrap: wrap;
+    padding: 20px;
+    gap: 40px;
+    justify-content: space-evenly;
+    height: 122px;
+    align-items: center;
+    width: 100vw;
+}
+.marca {
+    font-size: 15pt;
+    padding: 0px 20px;
+}
+/*Trabalhando com os produtos*/
+h2 {
+    width: 100vw;
+    text-align: center;
+    font-size: 48px;
+    font-weight: 700;
+    margin: 80px 0px 30px 0px;
+}
+#produtos {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100vw;
+}
+.produtos {
+    background-color: rgba(128, 128, 128, 0.24);
+    width: 295px;
+    height: 298px;
+    border-radius: 20px;
+    margin: 10px 5px 10px 5px;
+}
+
+.roupas {
+    width: 295px;
+    height: 298px;
+}
+.descrition {
+    margin: 10px;
+}
+#oculto {
+    display: flex;
+    flex-wrap: wrap;
+    width: 50%;
+    box-sizing: border-box;
+    gap: 25px;
+}
+/*Trabalhando os Descontos das Roupas*/
+.dwd {
+    display: flex;
+    gap: 10px;
+    width: 200px;
+    height: 32px;
+    margin-top: 5px;
+}
+.antigoP {
+    text-decoration: line-through;
+    color: rgba(0, 0, 0, 0.37);
+    font-weight: bold;
+    font-size: 24px;
+}
+.percentagemD {
+    background-color: #ff33331e;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 30px;
+    color: #FF3333;
+    font-size: 12px;
+}
+.preco {
+    font-weight: 700;
+    font-size: 24px;
+}
+/*Trabalhando com o Ver mais*/
+.mais {
+    border: 1px solid rgba(0, 0, 0, 0.158);
+    text-align: center;
+    padding: 16px 54px;
+    margin: 50px auto;
+    border-radius: 62px;
+    background: transparent;
+    cursor: pointer;
+    justify-content: center;
+    display: flex;
+    flex: 1 1 ;
+    align-items: center;
+}
+/*LInha Divisória*/
+
+#openMenu, #closeMenu {
+    border: none;
+    background: none;
+    font-size: 30px;
+    font-weight: bold;
+    padding: 0px 5px;
+    cursor: pointer;
+    display: none;
+    cursor: pointer;
+}
+
+@media only screen and (max-width: 1139px) {
+    #openMenu, #closeMenu {
+        display: block;
+    }
+
+    #closeMenu {
+        position: fixed;
+        right: 30px;
+        top: 10px;
+        display: none;
+        color: white;
+    }
+
+    nav {
+        position: fixed;
+        flex-direction: column;
+        width: 100vw;
+        height: 300vh;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        display: none;
+        background-color: rgba(0, 0, 0, 0.959);
+        z-index: 1;
+        margin-top: 300px;
+        gap: 10px;
+    }
+    nav > a {
+        padding-left: 30px;
+        padding-top: 20px;
+        background-color: white;
+        margin-left: 30px;
+        border-radius: 30px;
+    }
+    #searchmenu {
+        display: none;
+    }
+
+    #letters {
+        position: absolute;
+        top: 16%;
+        left: 5%;
+        max-width: 500px;
+    }
+
+    #main-letters {
+        font-size: 40pt;
+        font-weight: bold;
+    }
+    .down-letters {
+        width: 300px;
+    }
+    #oculto {
+        display: flex;
+        gap: 1%;
+        flex-direction: column;
+        width: 100%;
+    }
+    #formal {
+        width: 310px;
+    }
+    #informal {
+        width: 310px;
+    }
+    #festa {
+        width: 310px;
+    }
+    #ginasio {
+        width: 310px;
+    }
+}
+
+@media only screen and (max-width: 880px) {
+    #lupa {
+        display: inline;
+    }
+    #letters {
+        position: absolute;
+        top: 12%;
+        left: 5%;
+        max-width: 300px;
+    }
+
+    #main-letters {
+        font-size: 28pt;
+        font-weight: bold;
+    }
+
+    .down-letters {
+        width: 300px;
+        font-size: 10pt;
+    }
+}
+
+@media only screen and (max-width: 714px) {
+    #main-letters {
+        font-weight: 20pt;
+    }
+
+    .down-letters {
+        width: 180px;
+        font-size: 9pt;
+    }
+}
+
+@media only screen and (max-width: 675px) {
+    #set-off {
+        display: none;
+    }
+    header {
+        padding: 0px 10px;
+    }
+    #letters {
+        position: relative;
+    }
+
+    #main-letters {
+        margin-top: -20px;
+        width: 90vw;
+        margin: auto;
+    }
+    .down-letters {
+        width: 80vw;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    #btnBuy {
+        width: 450px;
+        margin: auto;
+    }
+    #information {
+        display: flex;
+        justify-content: center;
+        width: 80vw;
+    }
+    .call-letters {
+        background-color: rgba(128, 128, 128, 0.233);
+        padding-bottom: 30px;
+    }
+    #produtos {
+        gap: 5px;
+    }
+    #roupas {
+        height: 120px;
+    }
+    #mais {
+        display: block;
+        
+    }
+    .produtos {
+        width: 220px;
+        height: 260px;
+        margin-right: 20px;
+    } 
+    .roupas {
+        width: 220px;
+        height: 260px;
+    } 
+    .mais {
+        width: 400px;
+    }
+    #oculto {
+        display: none;
+    }
+    #marcas > img {
+        width: 116.74px;
+        height: 30px;
+    }
+    #marcas {
+        height: auto;
+    }
+    #festa {
+        width: 220px;
+        margin: 0;
+    }
+    .estilosRoupa {
+        width: 450px;
+    }
+    #inputEmail {
+        width: 300px;
+        margin-left: -60px;
+    }
+    #bigSubmit {
+        width: 300px;
+        margin-left: -60px;
+    }
+    article {
+        margin-left: 50px;
+    }
+    #allCard {
+        justify-content: center;
+        margin-top: 50px;
+    }
+    article {
+        gap: 10px
+    }
+    #mainGrelha {
+        width: 500px;
+    }
+    footer {
+        display: flex;
+        flex-wrap: wrap;
+        flex-direction: row;
+    }
+}
+/*Conteúdo Adiciconal*/
+aside {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: row;
+    width: 100%;
+    flex-wrap: wrap;
+}
+/*Trabalhando com o Navegador de Roupas*/
+#allDress {
+    background-color: #F0F0F0;
+    
+}
+#box-style {
+    display: flex; 
+    flex-wrap: wrap; 
+    justify-content: center; 
+    gap: 15px; 
+    padding-bottom: 50px;
+    width: 90%;
+    margin: auto;
+}
+#informal {
+    display: flex;
+    background-color: white;
+    border-radius: 20px;
+    height: 289px;
+    flex-basis: 407px;
+    width: 100%;
+}
+#formal {
+    background-color: white;
+    border-radius: 30px;
+    height: 289;
+    width: 684px;
+}
+#festa {
+    display: flex;
+    background-color: white;
+    flex-basis: 684px;
+    border-radius: 20px;
+    height: 289px;
+}
+#ginasio {
+    display: flex;
+    background-color: white;
+    border-radius: 20px;
+    flex-basis: 407px;
+    height: 289px;
+}
+.dressInformation {
+    padding: 20px;
+    font-weight: bold;
+    font-size: 25pt;
+}
+
+/*Eleborando os Comentários*/
+#comebtn {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    margin: 50px 20px;
+}
+#btnTrocar {
+    display: flex;
+    gap: 10px;
+    margin-right: 50px;
+}
+.btnTrocar {
+    border: none;
+    background: transparent;
+    font-weight: 700;
+    font-size: 40px;
+    cursor: pointer;
+}
+section {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    flex-direction: row;
+}
+#comentariosGeral {
+    display: flex;
+    gap: 10px;
+    margin: 50px auto;
+    max-width: 90%;
+    overflow-x: hidden;
+    justify-content: center;
+    align-items: center;
+    overflow: auto;
+}
+#comentariosGeral::-webkit-scrollbar {
+    display: none;
+}
+#comenTitu {
+    display: flex;
+    width: 100%;
+    text-align: center;
+    margin-left: 50px;
+    font-weight: 700;
+    font-size: 48px;
+}
+.comentarios {
+    flex-direction: column;
+    border: 1px solid rgba(0, 0, 0, 0.144);
+    height: 240px;
+    padding: 28px 32px;
+    border-radius: 20px;
+    flex: 0 0 400px;
+}
+.compradores {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+.opniaoClientes {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+/*Trabalhando a parte da Subiscrição*/
+#subiscricacao {
+    display: flex;
+    flex-wrap: wrap;
+    background-color: black;
+    color: white;
+    border-radius: 30px;
+    padding: 36px 64px;
+    width: 80%;
+    margin: auto;
+    justify-content: space-between;
+}
+/*o Input do Email*/
+
+#divulOfertas {
+    display: flex;
+    font-size: 40px;
+    width: 450px;
+}
+#inputEmailBotao {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    align-items: center;
+    flex-basis: 30%;
+    height: 100%;
+    margin-left: 50px;
+}
+#inputEmail {
+    display: flex;
+    flex: 1 1 100%;
+    background-color: white;
+    border-radius: 20px;
+    padding: 10px 0px 0px 15px;
+    margin-bottom: 10px;
+    height: 40px;
+    justify-content: center;
+    align-items: center;
+}
+#realInput {
+    border: none;
+    background-color: transparent;
+    outline: none;
+    margin-bottom: 5px;
+    width:80%;
+    height: 100%;
+    margin-left: 25px;
+}
+#bigSubmit {
+    display: flex;
+    flex: 1 1 100%;
+    border-radius: 30px;
+    background-color: white;
+    color: black;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+#submit {
+    border: none;
+    background: transparent;
+    color: black;
+    padding: 10px;
+    cursor: pointer;
+}
+/*Rodapé*/
+footer {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100vw;
+    background-color: white;
+    margin-left: 10px;
+}
+#icon2 {
+    width: 100%;
+}
+.redeSociais {
+    width: 28px;
+    height: 28px;
+    margin: 2px;
+}
+.cartoes {
+    width: 46.61px;
+    height: 30.03;
+}
+picture {
+    width: 100vw;
+    display: flex;
+    justify-content: right;
+    align-items: start;
+}
+/*Informações da Empresa*/
+article {
+    display: flex;
+    flex-wrap: wrap;
+    /* grid-template-columns: 1fr 1fr 1fr 1fr 1fr; */
+    margin: 10px 0px 20px 0px;
+    justify-content: center;
+    align-items: center;
+    gap: 50px;
+}
+.grelha {
+    /* display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 146px;
+    min-width: 177px; */
+    height: 177px;
+    font-size: 1em;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+#mainGrelha {
+    width: 248px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+#reservados {
+    width: 80%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    margin-bottom: 100px;
+}
+
+/*Trabalhando com o Card para cadastrar produtos*/
+.form-card {
+    margin-left: 10px;
+    border: 1px solid rgba(0, 0, 0, 0.493);
+    padding: 20px;
+    border-radius: 20px;
+    margin-right: 15px;
+    width: 90%;
+}
+.form-in-card {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+.form-card-input {
+    border: none;
+    outline: none;
+    background: transparent;
+}
+.btn-cadastrar {
+    border: none;
+    background: transparent;
+    color: white;
+    background-color: black;
+    padding: 0 40px;
+    height: 50px;
+    border-radius: 30px;
+    width: 290px;
+    margin-left: 20px;
+    cursor: pointer;
+    margin: auto;
+}
+.form-card-input-div {
+    background-color: #F0F0F0;
+    border-radius: 20px;
+    padding: 8px;
+    width: 420px;
+}
+#cadastro-titulo {
+    font-size: 20pt;
+}
+/*Sistema de Erro*/
+.sytemError {
+    background-color: #ff333346;
+    color: white;
+    padding: 8px;
+    width: 90%;
+    margin: auto;
+}
+.systemright {
+    background-color: rgba(0, 128, 0, 0.616);
+    color: white;
+    padding: 8px;
+    width: 90%;
+    margin: auto;
+}

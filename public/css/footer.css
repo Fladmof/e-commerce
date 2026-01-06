@@ -1,0 +1,287 @@
+/*Rodapé*/
+footer {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100vw;
+    background-color: white;
+    margin-left: 10px;
+}
+#icon2 {
+    width: 100%;
+}
+.redeSociais {
+    width: 28px;
+    height: 28px;
+    margin: 2px;
+}
+.cartoes {
+    width: 46.61px;
+    height: 30.03;
+}
+picture {
+    width: 100vw;
+    display: flex;
+    justify-content: right;
+    align-items: start;
+}
+/*Informações da Empresa*/
+@media only screen and (max-width: 800px) {
+   #fCdI {
+        max-width: 100%;
+        margin-left: 10px;
+    } 
+    article {
+        margin-right: 200px;
+    }
+}
+article {
+    
+}
+#fCdI {
+    height: 177px;
+    width: 248px;
+    margin-left: -200px;
+}
+.grelha {
+    /* display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 146px;
+    min-width: 177px; */
+    font-size: 1em;
+    display: flex;
+    flex-direction: column;
+    margin: 10px;
+    width: 250px;
+}
+#grelhaAbaixo {
+    display: flex;
+    flex-wrap: wrap;
+}
+#reservados {
+    width: 80%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    margin-bottom: 100px;
+}
+/*Todas as Alteraçõe da Página Casual*/
+/*Título e a descrição da página Casual*/
+main {
+    width: 100vw;
+}
+#btnFilter {
+    margin-right: 40px;
+    background-color: rgba(216, 215, 215, 0.425);
+    padding: 10px;
+    border-radius: 50%;
+    border: none;
+    display: none;
+    cursor: pointer;
+}
+#closeFilter {
+    background: transparent;
+    border: none;
+    font-weight: 700;
+    cursor: pointer;
+    display: none;
+}
+#anotherMain {
+    display: flex;
+}
+#tituDescri {
+    display: flex;
+    flex: 1 1 700px;
+    justify-content: space-around;
+    align-items: end;
+}
+#casualProdutos {
+    width: 900px;
+}
+#filtros {
+    width: 250px;
+    border: 0.5px solid rgba(0, 0, 0, 0.192);
+    max-height: 1220px;
+    margin-left: 90px;
+    border-radius: 20px;
+    padding: 20px;
+    color: rgba(0, 0, 0, 0.623);
+}
+#filtroCabeca {
+    justify-content: space-between;
+    display: flex;
+    margin-bottom: 20px;
+}
+#filtrosAllC {
+    gap: 5px;
+}
+.setaButao {
+    background: transparent;
+    border: none;
+    font-weight: bold;
+}
+.filtrosEachC {
+    display: flex;
+    justify-content: space-between;
+    margin: 20px 0px;
+}
+.filtroCor {
+    border-radius: 100%;
+    border: none;
+    outline: none;
+    height: 50px;
+}
+.filtroTesteColor {
+    height: 30px;
+    width: 30px;
+    border-radius: 50%;
+    border: 0.1px solid rgba(0, 0, 0, 0.288);
+}
+#filtroTesteColorFather {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+#filtroEachTamanhoAll {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    cursor: pointer;
+}
+.filtroEachTamanho {
+    background-color: gainsboro;
+    border-radius: 62px;
+    padding: 10px 20px;
+}
+.btnEspecial {
+    color: white;
+    border: none;
+    background: transparent;
+    background-color: black;
+    padding: 10px 65px;
+    border-radius: 62px;
+}
+.produtos {
+    background-color: rgba(128, 128, 128, 0.24);
+    width: 295px;
+    height: 298px;
+    border-radius: 20px;
+    margin: 10px 5px 10px 5px;
+}
+.roupas {
+    width: 295px;
+    height: 298px;
+}
+.descrition {
+    margin: 10px;
+}
+.dwd {
+    display: flex;
+    gap: 10px;
+    width: 200px;
+    height: 32px;
+    margin-top: 5px;
+}
+.preco {
+    font-weight: 700;
+    font-size: 24px;
+}
+.antigoP {
+    text-decoration: line-through;
+    color: rgba(0, 0, 0, 0.37);
+    font-weight: bold;
+    font-size: 24px;
+}
+.percentagemD {
+    background-color: #ff33331e;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 30px;
+    color: #FF3333;
+    font-size: 12px;
+}
+.allCasualDressInformation {
+    height: 100%;
+    margin-left: 20px;
+    width: 100%;
+}
+.CasualDressBigText {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 20px;
+}
+.casualAllDressGrid {
+    display: flex;
+    flex-wrap: wrap;
+}
+/*Trabalhando a parte da Subiscrição*/
+#subiscricacao {
+    display: flex;
+    flex-wrap: wrap;
+    background-color: black;
+    color: white;
+    border-radius: 30px;
+    padding: 36px 64px;
+    width: 85%;
+    margin: auto;
+    justify-content: space-between;
+}
+/*o Input do Email*/
+
+#divulOfertas {
+    display: flex;
+    font-size: 40px;
+    width: 450px;
+}
+#inputEmailBotao {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    align-items: center;
+    flex-basis: 30%;
+    height: 100%;
+    margin-left: 50px;
+}
+#inputEmail {
+    display: flex;
+    flex: 1 1 100%;
+    background-color: white;
+    border-radius: 20px;
+    padding: 10px 0px 0px 15px;
+    margin-bottom: 10px;
+    height: 40px;
+    justify-content: center;
+    align-items: center;
+}
+#realInput {
+    border: none;
+    background-color: transparent;
+    outline: none;
+    margin-bottom: 5px;
+    width:80%;
+    height: 100%;
+    margin-left: 25px;
+}
+#bigSubmit {
+    display: flex;
+    flex: 1 1 100%;
+    border-radius: 30px;
+    background-color: white;
+    color: black;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+#submit {
+    border: none;
+    background: transparent;
+    color: black;
+    padding: 10px;
+    cursor: pointer;
+}

@@ -1,0 +1,517 @@
+@charset "UTF-8";
+/*Configurações Globais*/
+* {
+    margin: 0;    
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    display: flex;
+    flex: 1 1 100vw;
+    flex-wrap: wrap;
+    flex-direction: row;
+    gap: 20px;
+    overflow-x: hidden;
+}
+a {
+    text-decoration: none;
+    color: black;
+}
+/*Cabelçalho*/
+#set-off {
+    flex: 1 1 100vw;
+    background-color: black;
+    color: white;
+    padding: 19px 5px;
+    text-align: center;
+    width: 100vw;
+}
+/*Botão para remover a promoção*/
+#proposal {
+    width: 100%;    
+    position: relative;
+}
+#remove {
+    position: absolute;
+    transform: translate(290px, 1px);
+    background: transparent;
+    color: white;
+    border: none;
+    margin-left: 30px;
+    font-size: 15pt;
+    cursor: pointer;
+}
+
+/*Marca e Botão*/
+#marcaBotao {
+    display: flex;
+    flex-direction: row;
+}
+/*Icon de Usuário e compras*/
+.icon {
+    margin: 5px 10px;
+    font-weight: bold;
+}
+/*id do link dentro do parágrafo*/
+#i-link {
+    color: white;
+    padding-left: 5px;
+}
+
+header {
+    flex-wrap: wrap;
+    display: flex;
+    flex: 1 1 100vw;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 5px;
+    padding: 0px 80px;
+    height: 48px;
+    width: 100vw;
+}
+/*Logo*/
+h1 {
+    color: black;
+    padding-left: 10px;
+    width: 150px;
+    font-family: integral CF;
+    font-weight: 700;
+    font-style: bold;
+    font-size: 2em;
+    justify-content: center;
+}
+/*Menu*/
+nav {
+    color: black;
+    font-size: 1em;
+    width: 321px;
+    height: 22px;
+    font-weight: 400;
+    margin: 10px 0px 0px 10px;
+    transition: transform 0.3s ease-in;
+}
+nav > a {
+    text-decoration: none;
+    color: black;
+    height: 56px;
+    font-weight: 400;
+    font-size: 1em;
+    width: 100%;
+    margin-right: 10px;
+}
+/*Botão com mais informações*/
+#maisProdutos {
+    transform: rotate(30px);
+    background: transparent;
+    border: none;
+    margin-left: 3px;
+    font-weight: bold;
+    font-size: 1em;
+}
+/*Barra de Pesquisa*/
+/*Div que contém o botão e o input de pesquisa*/
+#ucp {
+    display: flex;
+    flex-direction: row;
+    position: relative;
+    margin-top: 5px;
+}
+#imageSearch {
+    position: absolute;
+    transform: translate(8px, -5px);
+    width: 24px;
+    height: 24px;
+}
+#inletsearch {
+    position: absolute;
+    transform: translate(10px, 5px);
+}
+#searchmenu {
+    position: relative;
+    min-width: 577px;
+    position: relative;
+    background-color: rgba(211, 199, 199, 0.308);
+    padding: 3px 10px;
+    border-radius: 62px;
+    height: 48px;    
+}
+/*Botão com a imagem de Lupa*/
+#lupa {
+    display: none;
+}
+
+button#search {
+    outline: none;
+    border: none;
+    background: transparent;
+    cursor: pointer;    
+}
+/*Input da barra de pesquisa*/
+#inletsearch {
+    border: none;
+    outline: none;
+    flex-grow: 1;
+    flex-shrink: 1;
+    color: black;
+    position: absolute;
+    top: 25%;
+    left: 40px;
+    background: transparent;
+}
+/*Icones de pesquisa e outras coisas*/
+#icon {
+    margin-top: 7px;
+}
+#openMenu, #closeMenu {
+    border: none;
+    background: none;
+    font-size: 30px;
+    font-weight: bold;
+    padding: 0px 5px;
+    cursor: pointer;
+    display: none;
+    cursor: pointer;
+}
+@media only screen and (max-width: 1139px) {
+    #openMenu, #closeMenu {
+        display: block;
+    }
+
+    #closeMenu {
+        position: fixed;
+        right: 30px;
+        top: 10px;
+        display: none;
+        color: white;
+    }
+
+    nav {
+        position: fixed;
+        flex-direction: column;
+        width: 100vw;
+        height: 3000px;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        display: none;
+        background-color: rgba(0, 0, 0, 0.959);
+        z-index: 1;
+        margin-top: 300px;
+        gap: 10px;
+    }
+    nav > a {
+        padding-left: 30px;
+        padding-top: 20px;
+        background-color: white;
+        margin-left: 30px;
+        border-radius: 30px;
+    }
+    #searchmenu {
+        display: none;
+    }
+
+    #letters {
+        position: absolute;
+        top: 16%;
+        left: 5%;
+        max-width: 500px;
+    }
+
+    #main-letters {
+        font-size: 40pt;
+        font-weight: bold;
+    }
+    .down-letters {
+        width: 300px;
+    }
+    #oculto {
+        display: flex;
+        gap: 1%;
+        flex-direction: column;
+        width: 100%;
+    }
+}
+
+@media only screen and (max-width: 880px) {
+    #lupa {
+        display: inline;
+    }
+    #letters {
+        position: absolute;
+        top: 12%;
+        left: 5%;
+        max-width: 300px;
+    }
+
+    #main-letters {
+        font-size: 28pt;
+        font-weight: bold;
+    }
+
+    .down-letters {
+        width: 300px;
+        font-size: 10pt;
+    }
+}
+
+@media only screen and (max-width: 714px) {
+    #main-letters {
+        font-weight: 20pt;
+    }
+
+    .down-letters {
+        width: 180px;
+        font-size: 9pt;
+    }
+}
+
+@media only screen and (max-width: 675px) {
+    #set-off {
+        display: none;
+    }
+    header {
+        padding: 0px 10px;
+    }
+    #letters {
+        position: relative;
+    }
+
+    #main-letters {
+        margin-top: -20px;
+        width: 90vw;
+        margin: auto;
+    }
+    .down-letters {
+        width: 80vw;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    #btnBuy {
+        width: 450px;
+        margin: auto;
+    }
+    #information {
+        display: flex;
+        justify-content: center;
+        width: 80vw;
+    }
+    .call-letters {
+        background-color: rgba(128, 128, 128, 0.233);
+        padding-bottom: 30px;
+    }
+    #produtos {
+        gap: 5px;
+    }
+    #roupas {
+        height: 120px;
+    }
+    #mais {
+        display: block;
+        
+    }
+    .mais {
+        width: 400px;
+    }
+    #oculto {
+        display: none;
+    }
+    #marcas > img {
+        width: 116.74px;
+        height: 30px;
+    }
+    #marcas {
+        height: auto;
+    }
+    #festa {
+        width: 220px;
+        margin: 0;
+    }
+    .estilosRoupa {
+        width: 450px;
+    }
+    #inputEmail {
+        width: 300px;
+        margin-left: -60px;
+    }
+    #bigSubmit {
+        width: 300px;
+        margin-left: -60px;
+    }
+    article {
+        margin-left: 50px;
+    }
+    #allCard {
+        justify-content: center;
+        margin-top: 50px;
+    }
+    footer {
+        display: flex;
+        flex-wrap: wrap;
+        flex-direction: row;
+    }
+    article {    
+    /* display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 10px;
+    margin-left: -30px;
+    align-items: start; */
+    }
+}    
+/*Barra de Navegação*/
+#barraNavegacaoRoupas {
+    display: flex;
+    justify-content: space-between;
+    max-width: 359px;
+    margin-bottom: 50px;
+    margin-left: 40px;
+}
+.btnbarraNavegacao {
+    background: transparent;
+    border: none;
+    border: 0.1px solid rgba(0, 0, 0, 0.253);
+    padding: 8px 14px;
+    border-radius: 8px;
+    height: 36px;
+    font-size: 14px;
+    font-weight: 500;
+}
+/*Trabalhando as descrições das roupas*/
+.casualDescricaoRoupas {
+    font-weight: 700;
+    font-size: 20px;
+}
+/*Testando o Casual*/
+.casualFilterSelect {
+    border: none;
+    background: transparent;
+    transform: rotate(270deg);
+}
+/*Barra de Filtro de Preço*/
+#filterBarPrecoDress {
+    background-color: black;
+}
+#filterBarPrecoChange {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: column;
+}
+#precoAlternacia {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: 10px;
+}
+#filterBarPrecoDress {
+    -webkit-appearance: none;
+    background: rgba(180, 180, 180, 0.76);
+    height: 5px;
+    border-radius: 20px;
+}
+/*Editando o Variador de preço*/
+#filterBarPrecoDress::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 20px;
+    width: 20px;
+    background-color: black;
+    border-radius: 50%;
+}
+
+@media only screen and (max-width: 675px) {
+    #filtros {
+        display: none;
+        position: fixed;
+        overflow: auto;
+        height: 100%;
+    }
+    #btnFilter {
+        display: flex;
+    }
+    .produtos {
+        width: 172px;
+        height: 174px;
+        margin-right: 20px;
+    }
+    .roupas {
+        width: 172px;
+        height: 174px;
+    }
+    #linhaHorizontal {
+        width: 358px;
+    }
+    hr {
+        max-width: 358px;
+        margin-left: 100px;
+        width: 100%;
+    }
+    #casualParagrafWillDesaper {
+        display: none;
+    }
+    /*Fazendo a cena do filtro cubrir todo ecrã*/
+    #filtros {
+        min-width: 525px;
+        margin-left: 0px;
+        height: 1000px;
+        transform: translate();
+        background-color: white;
+    }
+    .btnEspecial {
+        padding: 16px 54px;
+        min-width: 383px;
+        margin-left: 50px;
+    }
+    /*Sumindo com o Filtro Interior*/
+    #filterImage {
+        display: none;
+    }
+    /*Fazendo o Close aparecer*/
+    #closeFilter {
+        display: block;
+        margin-right: 5px;
+    }
+    #filtroDesaparecer {
+        width: 440px;
+        position: fixed;
+        overflow-y: auto;
+    }
+    #formal {
+        background-color: white;
+        border-radius: 30px;
+        height: 190px;
+        width: 310px;
+    }
+    #mainGrelha {
+        width: 600px;
+        margin-right: 300px;
+    }
+}
+#casualParagrafWillDesaper {
+    margin-left: -20px;
+    margin-right: 80px;
+}
+
+/*Trabalhando Com os Cardes*/
+#caseCardALL {
+    display: flex;
+}
+.caseCard {
+    padding: 20px;
+    border-radius: 10px;
+    cursor: pointer;
+}
+.caseCard:active {
+    background-color: rgba(128, 128, 128, 0.171);
+}
+.filtroEachTamanho:active {
+    background-color: black;
+    color: white;
+}
+#desaper {
+    display:none
+}
+.produtos:hover {
+    transition: all 0.4s ease-in;
+    box-shadow: 1px 1px 20px  rgba(0, 0, 0, 0.486);
+}

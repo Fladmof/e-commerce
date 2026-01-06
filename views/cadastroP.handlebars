@@ -1,0 +1,44 @@
+{{#each erros}}
+    <div class="sytemError">{{texto}}</div>
+{{else}}
+
+{{/each}}
+
+<div class="form-card" style="width: 100%;">
+    <h3 id="cadastro-titulo" style="text-align: center;">Cadastar de Produtos</h3>
+    <form action="/admin/produto/add" method="post" class="form-in-card" style="display: flex; flex-direction:row;flex-wrap:wrap">
+            <div id="imgContainer">
+                <img src="/img/icons/upload.png" id="imgUpload">
+                <div>
+                    <input type="file" name="img_produto" class="image-input" id="imageInput" required>
+                    <div class="containerPs">
+                        <span id="imgSituation">Selecione uma Imagem</span>
+                        <label for="imageInput">
+                            <span id="btnSelecionar">Selecionar Imagem</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        <label for="">
+            Digite o nome do produto:
+            <div class="form-card-input-div">
+                <input type="text" placeholder="Ex.: Tênis Gucci" name="nome_produto" class="form-card-input" required>
+            </div>
+        </label>
+        <label for="Descrição">
+            Descreva o Produto:
+            <div class="form-card-input-div">
+                <textarea type="text" name="desc_produto" class="form-card-input"
+                style="padding: 20px 10px; width: 100%"  required></textarea>
+            </div>
+        </label>
+        <label for="Preço">
+            Insira o Preço:
+            <div class="form-card-input-div">
+                <input type="number" name="preco_produto" class="form-card-input" style="width: 100%;" required>
+            </div>
+        </label>
+        <button type="submit" class="btn-cadastrar">Cadastrar Produto</button>
+    </form>
+</div>
+

@@ -1,0 +1,170 @@
+@charset "UTF-8";
+/*Configurações Globais*/
+* {
+    margin: 0;    
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    display: flex;
+    flex: 1 1 100vw;
+    flex-wrap: wrap;
+    flex-direction: row;
+    gap: 20px;
+    overflow-x: hidden;
+}
+a {
+    text-decoration: none;
+    color: black;
+}
+/*Cabelçalho*/
+#set-off {
+    flex: 1 1 100vw;
+    background-color: black;
+    color: white;
+    padding: 19px 5px;
+    text-align: center;
+    width: 100vw;
+}
+/*Botão para remover a promoção*/
+#proposal {
+    width: 100%;    
+    position: relative;
+}
+#remove {
+    position: absolute;
+    transform: translate(290px, 1px);
+    background: transparent;
+    color: white;
+    border: none;
+    margin-left: 30px;
+    font-size: 15pt;
+    cursor: pointer;
+}
+
+/*Marca e Botão*/
+#marcaBotao {
+    display: flex;
+    flex-direction: row;
+}
+/*Icon de Usuário e compras*/
+.icon {
+    margin: 5px 10px;
+    font-weight: bold;
+}
+/*id do link dentro do parágrafo*/
+#i-link {
+    color: white;
+    padding-left: 5px;
+}
+
+header {
+    flex-wrap: wrap;
+    display: flex;
+    flex: 1 1 100vw;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 5px;
+    padding: 0px 80px;
+    height: 48px;
+    width: 100vw;
+}
+/*Logo*/
+h1 {
+    color: black;
+    padding-left: 10px;
+    width: 150px;
+    font-family: integral CF;
+    font-weight: 700;
+    font-style: bold;
+    font-size: 2em;
+    justify-content: center;
+}
+/*Menu*/
+nav {
+    color: black;
+    font-size: 1em;
+    width: 321px;
+    height: 22px;
+    font-weight: 400;
+    margin: 10px 0px 0px 10px;
+    transition: transform 0.3s ease-in;
+}
+nav > a {
+    text-decoration: none;
+    color: black;
+    height: 56px;
+    font-weight: 400;
+    font-size: 1em;
+    width: 100%;
+    margin-right: 10px;
+}
+/*Botão com mais informações*/
+#maisProdutos {
+    transform: rotate(30px);
+    background: transparent;
+    border: none;
+    margin-left: 3px;
+    font-weight: bold;
+    font-size: 1em;
+}
+/*Barra de Pesquisa*/
+/*Div que contém o botão e o input de pesquisa*/
+#ucp {
+    display: flex;
+    flex-direction: row;
+    position: relative;
+    margin-top: 5px;
+}
+#imageSearch {
+    position: absolute;
+    transform: translate(8px, -5px);
+    width: 24px;
+    height: 24px;
+}
+#inletsearch {
+    position: absolute;
+    transform: translate(10px, 5px);
+}
+#searchmenu {
+    position: relative;
+    min-width: 577px;
+    position: relative;
+    background-color: rgba(211, 199, 199, 0.308);
+    padding: 3px 10px;
+    border-radius: 62px;
+    height: 48px;    
+}
+/*Botão com a imagem de Lupa*/
+#lupa {
+    display: none;
+}
+
+button#search {
+    outline: none;
+    border: none;
+    background: transparent;
+    cursor: pointer;    
+}
+/*Estilo de Ampliar as Roupas*/
+.produtos:hover {
+    transition: all 0.4s ease-in;
+    box-shadow: 1px 1px 20px  rgba(0, 0, 0, 0.486);
+}
+/*Input da barra de pesquisa*/
+#inletsearch {
+    border: none;
+    outline: none;
+    flex-grow: 1;
+    flex-shrink: 1;
+    color: black;
+    position: absolute;
+    top: 25%;
+    left: 40px;
+    background: transparent;
+}
+/*Icones de pesquisa e outras coisas*/
+#icon {
+    margin-top: 7px;
+}

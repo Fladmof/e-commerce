@@ -1,0 +1,26 @@
+main {
+    display: flex;
+}
+#cardDress {
+    width: 152px;
+}
+.cardDress {
+    width: 152px;
+    background-color: #F0EEED;
+    margin-left: 20px;
+    border-radius: 20px;
+    margin-bottom: 5px;
+}
+#cardMain {
+    width: 444px;
+    height: 530px;
+    background-color: #F0EEED;
+    margin-left: 30px;
+    border-radius: 20px;
+}
+#descFilter {
+    margin-left: 25px;
+}
+h1 {
+    width: 100%;
+}
