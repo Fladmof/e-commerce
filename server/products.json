@@ -1,0 +1,98 @@
+[
+  {
+    "id": "tshirt-virgem",
+    "name": "T-shirt Preta Virgem",
+    "category": "camisetas",
+    "price": 120,
+    "oldPrice": 150,
+    "rating": 4,
+    "image": "/image/roupas/t_shert.png",
+    "description": "T-shirt casual com corte moderno e material leve para uso diário.",
+    "featured": true,
+    "stock": 18
+  },
+  {
+    "id": "calca-jeans",
+    "name": "Calça Jeans",
+    "category": "calcas",
+    "price": 240,
+    "oldPrice": 260,
+    "rating": 3,
+    "image": "/image/roupas/calça.png",
+    "description": "Calça jeans clássica, confortável e versátil para qualquer look.",
+    "featured": true,
+    "stock": 22
+  },
+  {
+    "id": "camisa-quadriculada",
+    "name": "Camisa Quadriculada",
+    "category": "camisetas",
+    "price": 180,
+    "oldPrice": 0,
+    "rating": 5,
+    "image": "/image/roupas/camisa.png",
+    "description": "Design elegante e casual para elevar o teu visual diário.",
+    "featured": true,
+    "stock": 9
+  },
+  {
+    "id": "tshirt-listrada",
+    "name": "T-shirt Listrada",
+    "category": "camisetas",
+    "price": 130,
+    "oldPrice": 160,
+    "rating": 4,
+    "image": "/image/roupas/camisola.png",
+    "description": "Peça leve com estampa listrada e visual moderno.",
+    "featured": false,
+    "stock": 27
+  },
+  {
+    "id": "camisa-premium",
+    "name": "Camisa Premium",
+    "category": "camisetas",
+    "price": 212,
+    "oldPrice": 232,
+    "rating": 4,
+    "image": "/image/roupas/mais_vendidos/camisa_mais_vendida.png",
+    "description": "Muito procurada por quem gosta de estilo casual e sofisticado.",
+    "featured": true,
+    "stock": 14
+  },
+  {
+    "id": "tshirt-classica",
+    "name": "T-shirt Clássica",
+    "category": "camisetas",
+    "price": 120,
+    "oldPrice": 0,
+    "rating": 4,
+    "image": "/image/roupas/mais_vendidos/t_sher_mais_vendida.png",
+    "description": "Perfeita para combinar com peças básicas e acessórios.",
+    "featured": false,
+    "stock": 31
+  },
+  {
+    "id": "acessorio-essentials",
+    "name": "Acessório Essentials",
+    "category": "acessorios",
+    "price": 90,
+    "oldPrice": 110,
+    "rating": 5,
+    "image": "/image/hat.png",
+    "description": "Complemento que realça qualquer outfit com estilo e comodidade.",
+    "featured": false,
+    "stock": 16
+  },
+  {
+    "id": "sapatilha-casual",
+    "name": "Sapatilha Casual",
+    "category": "acessorios",
+    "price": 210,
+    "oldPrice": 240,
+    "rating": 4,
+    "image": "/image/white-shoe.png",
+    "description": "Conforto e estilo em uma sola moderna para o dia a dia.",
+    "featured": true,
+    "stock": 12
+  }
+]
