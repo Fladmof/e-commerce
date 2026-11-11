@@ -34,7 +34,7 @@ try {
         typeof user.email !== 'string' ||
         !user.email.trim() ||
         !user.passwordHash ||
-        !['admin', 'customer'].includes(user.role)
+        !['admin', 'customer', 'seller'].includes(user.role)
       ) {
         throw new Error('Foi encontrado um utilizador legado sem os campos obrigatórios.')
       }

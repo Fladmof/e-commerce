@@ -11,7 +11,33 @@ test('uses catalog prices instead of client-supplied prices', () => {
   const [item] = resolveCartItems([{ id: 'shirt', quantity: 2, price: 0.01 }], products)
 
   assert.equal(item.unitAmount, 1250)
+  assert.equal(item.commissionAmount, 25)
+  assert.equal(item.totalUnitAmount, 1275)
   assert.equal(item.quantity, 2)
+})
+
+test('converts AOA product prices to EUR and calculates the 2% platform commission', () => {
+  const [item] = resolveCartItems(
+    [{ id: 'shirt', quantity: 1 }],
+    [{ id: 'shirt', name: 'T-shirt', price: 10000, priceCurrency: 'AOA', stock: 2 }],
+    { aoaPerEur: 1000 }
+  )
+
+  assert.equal(item.unitAmount, 1000)
+  assert.equal(item.commissionAmount, 20)
+  assert.equal(item.totalUnitAmount, 1020)
+  assert.equal(item.baseAmountAoa, 10000)
+  assert.equal(item.commissionAmountAoa, 200)
+})
+
+test('requires a valid EUR/AOA rate for seller products', () => {
+  assert.throws(
+    () => resolveCartItems(
+      [{ id: 'shirt', quantity: 1 }],
+      [{ id: 'shirt', name: 'T-shirt', price: 10000, priceCurrency: 'AOA', stock: 2 }]
+    ),
+    /cotação EUR\/AOA/
+  )
 })
 
 test('rejects empty carts and invalid quantities', () => {

@@ -53,13 +53,17 @@ export const mapProduct = (row) => ({
   id: row.id,
   name: row.name,
   category: row.category,
-  price: Number(row.price),
-  oldPrice: Number(row.old_price),
+  price: Number(row.price_aoa ?? row.price),
+  priceCurrency: row.price_aoa !== null && row.price_aoa !== undefined ? 'AOA' : 'EUR',
+  oldPrice: Number(row.old_price_aoa ?? row.old_price),
   rating: Number(row.rating),
   image: row.image,
   description: row.description,
   featured: row.featured,
-  stock: Number(row.stock)
+  stock: Number(row.stock),
+  sellerId: row.seller_id || null,
+  sellerName: row.seller_name || '',
+  approved: row.approved !== false
 })
 
 export const mapOrder = (row) => ({
@@ -69,6 +73,7 @@ export const mapOrder = (row) => ({
   createdAt: row.created_at,
   customer: row.customer,
   shipping: Number(row.shipping),
+  commission: Number(row.commission || 0),
   total: Number(row.total),
   items: row.items
 })

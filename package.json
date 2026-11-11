@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "node --test",
-    "lint": "node --check server/index.js && node --check server/database.js && node --check server/storage.js && node --check server/migrate-json-to-postgres.js && node --check server/shop.js && node --check vite.config.js",
+    "lint": "node --check server/index.js && node --check server/database.js && node --check server/storage.js && node --check server/shipping.js && node --check server/migrate-json-to-postgres.js && node --check server/shop.js && node --check vite.config.js",
     "migrate:postgres": "node server/migrate-json-to-postgres.js"
   },
   "dependencies": {

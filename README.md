@@ -5,9 +5,16 @@ Loja de moda construída com React, Vite e uma API Express.
 ## Funcionalidades
 
 - Catálogo pesquisável, páginas de produto e carrinho com controlo de stock
-- Registo, início de sessão e gestão de produtos para administradores
+- Registo de clientes e vendedores, início de sessão e gestão de produtos
+- Upload de foto de perfil para contas de cliente, vendedor e administrador
+- Produtos de vendedor sujeitos a aprovação do administrador
+- Dashboard administrativa com vendas, comissões, envios, encomendas, vendedores, aprovações e stock
+- Chat entre clientes e vendedores por produto
+- Custo de intermediação de 2% cobrado junto com os produtos
+- Comentários públicos sobre a experiência de compra, disponíveis para clientes com encomenda paga
 - Checkout Stripe alojado pelo Stripe; os dados do cartão não passam pela aplicação
 - Encomendas confirmadas pela API após validação do pagamento Stripe
+- Preços indicativos em KZ calculados a partir da cotação EUR/AOA
 
 ## Requisitos e desenvolvimento local
 
@@ -19,7 +26,9 @@ cp .env.example .env
 npm run dev
 ```
 
-Crie uma base PostgreSQL local e configure `DATABASE_URL` no `.env` antes de iniciar. O schema e os produtos de demonstração são criados automaticamente na primeira execução. Para uploads de imagens, configure um bucket S3 compatível; sem essa configuração, o endpoint de upload devolve um erro explícito.
+Crie uma base PostgreSQL local e configure `DATABASE_URL` no `.env` antes de iniciar. O schema e os produtos de demonstração são criados automaticamente na primeira execução. Em desenvolvimento, os uploads de imagens de produtos e fotos de perfil funcionam sem S3 e são guardados em `server/uploads/`; para produção, configure um bucket S3 compatível. Utilizadores autenticados podem escolher ou substituir a foto na página da conta, em «Entrar». As fotos de perfil usam o nome normalizado da conta, o ID do utilizador e um identificador por upload para evitar colisões e cache desatualizada; os nomes de produtos são aleatórios.
+
+Vendedores devem guardar um ponto de recolha no painel. No checkout, o comprador pode autorizar o navegador a usar a localização atual uma vez. A API calcula a distância rodoviária com OpenRouteService e aplica 500 AOA de base + 100 AOA por quilómetro para cada vendedor distinto; produtos da loja sem vendedor têm apenas a taxa base de 500 AOA. As coordenadas do comprador não são guardadas pela loja, mas são enviadas ao OpenRouteService para calcular o percurso. Configure `OPENROUTESERVICE_API_KEY` no `.env`; sem essa chave, a cotação de envio não fica disponível. O valor calculado em AOA é convertido em EUR para o pagamento Stripe.
 
 Frontend: <http://localhost:5173>
 API: <http://localhost:4000/api/health>
@@ -46,6 +55,20 @@ Configure no `.env` uma chave de teste Stripe em `STRIPE_SECRET_KEY` e o segredo
 
 Sem Stripe configurado, o checkout falha explicitamente; a aplicação nunca simula um pagamento concluído. A confirmação no regresso do checkout e o webhook usam a mesma operação idempotente para gravar a encomenda e atualizar o stock.
 
+## Moeda e comentários
+
+Os preços e encomendas continuam cobrados pelo Stripe em EUR. A loja apresenta valores em KZ usando a cotação pública EUR/AOA de `open.er-api.com`, atualizada na API no máximo a cada seis horas. Se o serviço estiver indisponível, a API usa a referência de 1 EUR = 1059,809072 AOA, obtida em 10/11/2026, e mostra um aviso de que pode estar desatualizada. Essa referência serve apenas para exibição: o checkout de produtos com preço em KZ fica indisponível até existir uma cotação atual. O checkout informa o total efetivamente cobrado em EUR; os valores em KZ são indicativos e podem variar com a taxa.
+
+Clientes autenticados com pelo menos uma encomenda paga podem publicar um comentário sobre a experiência de compra. Cada cliente pode publicar um comentário, que fica visível imediatamente e mostra apenas o primeiro nome.
+
+## Vendedores, mensagens e comissão
+
+No registo, o utilizador escolhe entre cliente e vendedor. Os clientes podem indicar categorias, estilos, cores e orçamento preferidos; estas respostas ficam guardadas no perfil e ordenam as sugestões do catálogo após a autenticação. Vendedores publicam produtos com preço base em KZ; cada produto aguarda aprovação do administrador, e uma edição volta a colocá-lo na fila de aprovação. Clientes com sessão iniciada podem abrir uma conversa sobre qualquer produto publicado. As mensagens são guardadas na base de dados e atualizadas no chat a cada três segundos.
+
+O painel de administração apresenta indicadores de vendas, comissões, envios cobrados, encomendas, vendedores e stock, além de aprovações pendentes, checkouts por confirmar, produtos mais vendidos e encomendas recentes. Os dados atualizam-se automaticamente a cada minuto. O acompanhamento de recolha, expedição e entrega não está disponível, pois esses estados ainda não são registados pela aplicação.
+
+O checkout calcula uma comissão de intermediação de 2% sobre o preço base, mostra-a discriminada e inclui-a no valor cobrado. Preços em KZ são convertidos para EUR à cotação disponível no servidor antes de criar a sessão Stripe. A conta Stripe da loja recebe o pagamento completo; esta integração não automatiza o repasse da parte do vendedor, que deve ser feito manualmente. Os 2% representam a comissão da plataforma e não substituem taxas Stripe, impostos ou obrigações legais.
+
 ## Publicação
 
 O workflow de GitHub Actions compila o frontend com Vite e publica o `dist/` no GitHub Pages. Configure a variável de repositório `VITE_API_URL` com o endereço público completo da API, incluindo `/api` (por exemplo, `https://api.exemplo.pt/api`). O workflow falha deliberadamente se essa variável estiver ausente.
@@ -57,6 +80,7 @@ A API tem de ser hospedada separadamente. No serviço da API configure:
 - `DATABASE_SSL=true`; se o fornecedor usar uma autoridade certificadora privada, configure-a em `DATABASE_SSL_CA`
 - `JWT_SECRET` com pelo menos 32 caracteres aleatórios
 - `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET`
+- `OPENROUTESERVICE_API_KEY` para calcular distâncias rodoviárias e custos de envio
 - `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` e `S3_PUBLIC_BASE_URL`; configure `S3_ENDPOINT` para serviços S3 compatíveis que não sejam AWS
 - `FRONTEND_URL` com a URL publicada do frontend, incluindo o caminho do repositório quando aplicável
 - `CORS_ORIGINS` com a origem do frontend (apenas esquema e domínio, sem caminho)
