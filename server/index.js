@@ -14,6 +14,14 @@ import { resolveCartItems } from './shop.js'
 import { deleteStoredImage, localStorageEnabled, storeImage } from './storage.js'
 import { calculateDeliveryQuote, convertAoaToEurCents, validateCoordinates } from './shipping.js'
 import { emptyStylePreferences, normalizeStylePreferences } from '../shared/style-preferences.js'
+import {
+  canUpdateFulfillment,
+  canUpdateReturn,
+  fulfillmentStatuses,
+  getPayoutSettlementStatus,
+  getSellerPayouts,
+  returnStatuses
+} from './value-chain.js'
 
 dotenv.config()
 
@@ -722,90 +730,251 @@ app.get('/api/admin/products/pending', requireAuth, requireAdmin, asyncRoute(asy
   return res.json(rows.map(mapProduct))
 }))
 
-app.get('/api/admin/dashboard', requireAuth, requireAdmin, asyncRoute(async (_req, res) => {
-  const [ordersResult, inventoryResult, pendingResult, dailyResult, topProductsResult, recentOrdersResult] =
-    await Promise.all([
-      pool.query(
-        `SELECT
-           COUNT(*) FILTER (WHERE status = 'paid') AS paid_orders,
-           COUNT(*) FILTER (WHERE status = 'refunded') AS refunded_orders,
-           COALESCE(SUM(total) FILTER (WHERE status = 'paid'), 0) AS revenue,
-           COALESCE(SUM(commission) FILTER (WHERE status = 'paid'), 0) AS commission,
-           COALESCE(SUM(shipping) FILTER (WHERE status = 'paid'), 0) AS shipping,
-           COUNT(*) FILTER (WHERE status = 'paid' AND created_at >= NOW() - INTERVAL '7 days') AS paid_orders_last_7_days
-         FROM orders`
-      ),
-      pool.query(
-        `SELECT
-           COUNT(*) FILTER (WHERE approved = TRUE) AS approved_products,
-           COUNT(*) FILTER (WHERE approved = FALSE) AS pending_products,
-           COALESCE(SUM(stock) FILTER (WHERE approved = TRUE), 0) AS stock_units,
-           COUNT(*) FILTER (WHERE approved = TRUE AND stock = 0) AS out_of_stock,
-           COUNT(*) FILTER (WHERE approved = TRUE AND stock BETWEEN 1 AND 5) AS low_stock,
-           (SELECT COUNT(*) FROM users WHERE role = 'seller') AS sellers
-         FROM products`
-      ),
-      pool.query(
-        `SELECT COUNT(*) AS checkouts_awaiting_confirmation
-           FROM pending_orders`
-      ),
-      pool.query(
-        `WITH days AS (
-           SELECT generate_series(CURRENT_DATE - INTERVAL '6 days', CURRENT_DATE, INTERVAL '1 day')::date AS day
-         ), daily_orders AS (
-           SELECT created_at::date AS day,
-                  COUNT(*) FILTER (WHERE status = 'paid') AS paid_orders,
-                  COALESCE(SUM(total) FILTER (WHERE status = 'paid'), 0) AS revenue
-             FROM orders
-            WHERE created_at >= CURRENT_DATE - INTERVAL '6 days'
-               AND created_at < CURRENT_DATE + INTERVAL '1 day'
-            GROUP BY created_at::date
-         )
-         SELECT TO_CHAR(days.day, 'YYYY-MM-DD') AS day,
-                COALESCE(daily_orders.paid_orders, 0) AS paid_orders,
-                COALESCE(daily_orders.revenue, 0) AS revenue
-           FROM days
-           LEFT JOIN daily_orders ON daily_orders.day = days.day
-          ORDER BY days.day`
-      ),
-      pool.query(
-        `SELECT item->>'productId' AS product_id,
-                COALESCE(products.name, 'Produto removido') AS name,
-                SUM((item->>'quantity')::integer) AS units_sold
+app.get('/api/admin/dashboard', requireAuth, requireAdmin, asyncRoute(async (req, res) => {
+  const period = [7, 30, 90].includes(Number(req.query.period)) ? Number(req.query.period) : 30
+  const [
+    ordersResult,
+    inventoryResult,
+    inventoryAlertsResult,
+    pendingResult,
+    dailyResult,
+    topProductsResult,
+    fulfillmentResult,
+    returnsResult,
+    payoutSummaryResult,
+    supplierResult,
+    operationsResult,
+    payoutsResult,
+    returnsQueueResult
+  ] = await Promise.all([
+    pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE status = 'paid') AS paid_orders,
+         COUNT(*) FILTER (WHERE status = 'refunded') AS refunded_orders,
+         COALESCE(SUM(total) FILTER (WHERE status = 'paid'), 0) AS revenue,
+         COALESCE(SUM(commission) FILTER (WHERE status = 'paid'), 0) AS commission,
+         COALESCE(SUM(shipping) FILTER (WHERE status = 'paid'), 0) AS shipping,
+         COUNT(*) FILTER (WHERE status = 'paid' AND created_at >= NOW() - ($1 * INTERVAL '1 day')) AS paid_orders_in_period,
+         COALESCE(SUM(total) FILTER (
+           WHERE status = 'paid' AND created_at >= NOW() - ($1 * INTERVAL '1 day')
+         ), 0) AS revenue_in_period
+       FROM orders`,
+      [period]
+    ),
+    pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE approved = TRUE) AS approved_products,
+         COUNT(*) FILTER (WHERE approved = FALSE) AS pending_products,
+         COALESCE(SUM(stock) FILTER (WHERE approved = TRUE), 0) AS stock_units,
+         COUNT(*) FILTER (WHERE approved = TRUE AND stock = 0) AS out_of_stock,
+         COUNT(*) FILTER (WHERE approved = TRUE AND stock BETWEEN 1 AND 5) AS low_stock,
+         (SELECT COUNT(*) FROM users WHERE role = 'seller') AS sellers,
+         (SELECT COUNT(*) FROM users WHERE role = 'customer') AS customers
+       FROM products`
+    ),
+    pool.query(
+      `SELECT products.id, products.name, products.category, products.stock,
+              seller.name AS seller_name
+         FROM products
+         LEFT JOIN users AS seller ON seller.id = products.seller_id
+        WHERE products.approved = TRUE AND products.stock <= 5
+        ORDER BY products.stock, products.name
+        LIMIT 50`
+    ),
+    pool.query('SELECT COUNT(*) AS checkouts_awaiting_confirmation FROM pending_orders'),
+    pool.query(
+      `WITH days AS (
+         SELECT generate_series(
+           CURRENT_DATE - (($1 - 1) * INTERVAL '1 day'),
+           CURRENT_DATE,
+           INTERVAL '1 day'
+         )::date AS day
+       ), daily_orders AS (
+         SELECT created_at::date AS day,
+                COUNT(*) FILTER (WHERE status = 'paid') AS paid_orders,
+                COALESCE(SUM(total) FILTER (WHERE status = 'paid'), 0) AS revenue
+           FROM orders
+          WHERE created_at >= CURRENT_DATE - (($1 - 1) * INTERVAL '1 day')
+            AND created_at < CURRENT_DATE + INTERVAL '1 day'
+          GROUP BY created_at::date
+       )
+       SELECT TO_CHAR(days.day, 'YYYY-MM-DD') AS day,
+              COALESCE(daily_orders.paid_orders, 0) AS paid_orders,
+              COALESCE(daily_orders.revenue, 0) AS revenue
+         FROM days
+         LEFT JOIN daily_orders ON daily_orders.day = days.day
+        ORDER BY days.day`,
+      [period]
+    ),
+    pool.query(
+      `SELECT item->>'productId' AS product_id,
+              COALESCE(products.name, 'Produto removido') AS name,
+              SUM((item->>'quantity')::integer) AS units_sold
+         FROM orders
+         CROSS JOIN LATERAL jsonb_array_elements(orders.items) AS elements(item)
+         LEFT JOIN products ON products.id = item->>'productId'
+        WHERE orders.status = 'paid'
+          AND orders.created_at >= NOW() - ($1 * INTERVAL '1 day')
+        GROUP BY item->>'productId', products.name
+        ORDER BY units_sold DESC, name
+        LIMIT 8`,
+      [period]
+    ),
+    pool.query(
+      `SELECT fulfillment_status AS status, COUNT(*) AS count
+         FROM orders
+        GROUP BY fulfillment_status`
+    ),
+    pool.query(
+      `SELECT return_status AS status, COUNT(*) AS count
+         FROM orders
+        GROUP BY return_status`
+    ),
+    pool.query(
+      `SELECT status, currency, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount
+         FROM seller_payouts
+        GROUP BY status, currency
+        ORDER BY currency, status`
+    ),
+    pool.query(
+      `WITH inventory AS (
+         SELECT seller_id,
+                COUNT(*) AS products,
+                COUNT(*) FILTER (WHERE approved = TRUE) AS approved_products,
+                COUNT(*) FILTER (WHERE approved = FALSE) AS pending_products,
+                COALESCE(SUM(stock) FILTER (WHERE approved = TRUE), 0) AS stock_units,
+                COUNT(*) FILTER (WHERE approved = TRUE AND stock <= 5) AS low_stock
+           FROM products
+          WHERE seller_id IS NOT NULL
+          GROUP BY seller_id
+       ), sales AS (
+         SELECT item->>'sellerId' AS seller_id,
+                COUNT(DISTINCT orders.id) AS orders,
+                COALESCE(SUM((item->>'quantity')::integer), 0) AS units_sold
            FROM orders
            CROSS JOIN LATERAL jsonb_array_elements(orders.items) AS elements(item)
-           LEFT JOIN products ON products.id = item->>'productId'
           WHERE orders.status = 'paid'
-          GROUP BY item->>'productId', products.name
-          ORDER BY units_sold DESC, name
-          LIMIT 5`
-      ),
-      pool.query(
-        `SELECT id, status, created_at, total, customer->>'name' AS customer_name
-           FROM orders
-          ORDER BY created_at DESC
-          LIMIT 8`
-      )
-    ])
+            AND orders.created_at >= NOW() - ($1 * INTERVAL '1 day')
+            AND NULLIF(item->>'sellerId', '') IS NOT NULL
+          GROUP BY item->>'sellerId'
+       ), payouts AS (
+         SELECT seller_id,
+                COUNT(*) FILTER (WHERE status = 'pending') AS pending_payouts,
+                COUNT(*) FILTER (WHERE status = 'recovery_required') AS recoveries
+           FROM seller_payouts
+          GROUP BY seller_id
+       )
+       SELECT users.id, users.name, users.email,
+              COALESCE(inventory.products, 0) AS products,
+              COALESCE(inventory.approved_products, 0) AS approved_products,
+              COALESCE(inventory.pending_products, 0) AS pending_products,
+              COALESCE(inventory.stock_units, 0) AS stock_units,
+              COALESCE(inventory.low_stock, 0) AS low_stock,
+              COALESCE(sales.orders, 0) AS orders,
+              COALESCE(sales.units_sold, 0) AS units_sold,
+              COALESCE(payouts.pending_payouts, 0) AS pending_payouts,
+              COALESCE(payouts.recoveries, 0) AS recoveries
+         FROM users
+         LEFT JOIN inventory ON inventory.seller_id = users.id
+         LEFT JOIN sales ON sales.seller_id = users.id
+         LEFT JOIN payouts ON payouts.seller_id = users.id
+        WHERE users.role = 'seller'
+        ORDER BY pending_payouts DESC, units_sold DESC, users.name`,
+      [period]
+    ),
+    pool.query(
+      `SELECT id, status, created_at, total, customer->>'name' AS customer_name,
+              customer->>'email' AS customer_email,
+              customer->>'address' AS delivery_address,
+              customer->>'city' AS delivery_city,
+              customer->>'country' AS delivery_country,
+              fulfillment_status, carrier, tracking_number, fulfillment_updated_at,
+              return_status, return_reason, return_carrier, return_tracking_number,
+              return_requested_at, return_updated_at,
+              refund_status, restocked_at,
+              (SELECT string_agg(
+                 COALESCE(products.name, 'Produto removido') || ' × ' || (item->>'quantity'),
+                 ', '
+               )
+                 FROM jsonb_array_elements(orders.items) AS elements(item)
+                 LEFT JOIN products ON products.id = item->>'productId'
+              ) AS item_summary
+         FROM orders
+        ORDER BY created_at DESC
+        LIMIT 80`
+    ),
+    pool.query(
+      `SELECT seller_payouts.id, seller_payouts.order_id, seller_payouts.amount,
+              seller_payouts.currency, seller_payouts.status,
+              seller_payouts.transfer_reference, seller_payouts.settled_at,
+              seller_payouts.created_at, seller.name AS seller_name,
+              orders.customer->>'name' AS customer_name
+         FROM seller_payouts
+         JOIN users AS seller ON seller.id = seller_payouts.seller_id
+         JOIN orders ON orders.id = seller_payouts.order_id
+        ORDER BY CASE seller_payouts.status
+                   WHEN 'recovery_required' THEN 0
+                   WHEN 'pending' THEN 1
+                   ELSE 2
+                 END,
+                 seller_payouts.created_at DESC
+        LIMIT 100`
+    ),
+    pool.query(
+      `SELECT id, status, created_at, customer->>'name' AS customer_name,
+              return_status, return_reason, return_carrier, return_tracking_number,
+              return_requested_at, return_updated_at,
+              fulfillment_status, refund_status, restocked_at
+         FROM orders
+        WHERE return_status IN ('requested', 'approved', 'rejected', 'received', 'refunded')
+        ORDER BY COALESCE(return_updated_at, return_requested_at, created_at) DESC
+        LIMIT 50`
+    )
+  ])
 
   const orders = ordersResult.rows[0]
   const inventory = inventoryResult.rows[0]
+  const countsByStatus = (rows, statuses) => Object.fromEntries(
+    statuses.map((status) => [
+      status,
+      Number(rows.find((row) => row.status === status)?.count || 0)
+    ])
+  )
+
   return res.json({
+    period,
     summary: {
       paidOrders: Number(orders.paid_orders),
       refundedOrders: Number(orders.refunded_orders),
       revenue: Number(orders.revenue),
       commission: Number(orders.commission),
       shipping: Number(orders.shipping),
-      paidOrdersLast7Days: Number(orders.paid_orders_last_7_days),
+      paidOrdersInPeriod: Number(orders.paid_orders_in_period),
+      revenueInPeriod: Number(orders.revenue_in_period),
       approvedProducts: Number(inventory.approved_products),
       pendingProducts: Number(inventory.pending_products),
       stockUnits: Number(inventory.stock_units),
       outOfStock: Number(inventory.out_of_stock),
       lowStock: Number(inventory.low_stock),
       sellers: Number(inventory.sellers),
+      customers: Number(inventory.customers),
       checkoutsAwaitingConfirmation: Number(pendingResult.rows[0].checkouts_awaiting_confirmation)
     },
+    inventoryAlerts: inventoryAlertsResult.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      category: row.category,
+      stock: Number(row.stock),
+      sellerName: row.seller_name || 'Loja'
+    })),
+    fulfillment: countsByStatus(fulfillmentResult.rows, fulfillmentStatuses),
+    returns: countsByStatus(returnsResult.rows, ['none', ...returnStatuses.filter((status) => status !== 'none'), 'refunded']),
+    payouts: payoutSummaryResult.rows.map((row) => ({
+      status: row.status,
+      currency: row.currency,
+      count: Number(row.count),
+      amount: Number(row.amount)
+    })),
     dailyOrders: dailyResult.rows.map((row) => ({
       day: row.day,
       paidOrders: Number(row.paid_orders),
@@ -816,12 +985,68 @@ app.get('/api/admin/dashboard', requireAuth, requireAdmin, asyncRoute(async (_re
       name: row.name,
       unitsSold: Number(row.units_sold)
     })),
-    recentOrders: recentOrdersResult.rows.map((row) => ({
+    suppliers: supplierResult.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      products: Number(row.products),
+      approvedProducts: Number(row.approved_products),
+      pendingProducts: Number(row.pending_products),
+      stockUnits: Number(row.stock_units),
+      lowStock: Number(row.low_stock),
+      orders: Number(row.orders),
+      unitsSold: Number(row.units_sold),
+      pendingPayouts: Number(row.pending_payouts),
+      recoveries: Number(row.recoveries)
+    })),
+    operations: operationsResult.rows.map((row) => ({
       id: row.id,
       status: row.status,
       createdAt: row.created_at,
       total: Number(row.total),
+      customerName: row.customer_name || 'Cliente',
+      customerEmail: row.customer_email || '',
+      deliveryAddress: [row.delivery_address, row.delivery_city, row.delivery_country].filter(Boolean).join(', '),
+      fulfillmentStatus: row.fulfillment_status,
+      carrier: row.carrier || '',
+      trackingNumber: row.tracking_number || '',
+      fulfillmentUpdatedAt: row.fulfillment_updated_at,
+      returnStatus: row.return_status,
+      returnReason: row.return_reason || '',
+      returnCarrier: row.return_carrier || '',
+      returnTrackingNumber: row.return_tracking_number || '',
+      returnRequestedAt: row.return_requested_at,
+      returnUpdatedAt: row.return_updated_at,
+      refundStatus: row.refund_status,
+      restockedAt: row.restocked_at,
+      itemSummary: row.item_summary || ''
+    })),
+    payoutsList: payoutsResult.rows.map((row) => ({
+      id: row.id,
+      orderId: row.order_id,
+      amount: Number(row.amount),
+      currency: row.currency,
+      status: row.status,
+      transferReference: row.transfer_reference || '',
+      settledAt: row.settled_at,
+      createdAt: row.created_at,
+      sellerName: row.seller_name,
       customerName: row.customer_name || 'Cliente'
+    })),
+    returnsQueue: returnsQueueResult.rows.map((row) => ({
+      id: row.id,
+      paymentStatus: row.status,
+      createdAt: row.created_at,
+      customerName: row.customer_name || 'Cliente',
+      status: row.return_status,
+      reason: row.return_reason || '',
+      carrier: row.return_carrier || '',
+      trackingNumber: row.return_tracking_number || '',
+      requestedAt: row.return_requested_at,
+      updatedAt: row.return_updated_at,
+      fulfillmentStatus: row.fulfillment_status,
+      refundStatus: row.refund_status,
+      restockedAt: row.restocked_at
     }))
   })
 }))
@@ -1251,6 +1476,9 @@ const finalizePaidOrder = async (session) => withTransaction(async (client) => {
     shipping: Number(pendingOrder.shipping),
     commission: Number(pendingOrder.commission || 0),
     total: Number(session.amount_total) / 100,
+    paymentIntentId: typeof session.payment_intent === 'string'
+      ? session.payment_intent
+      : session.payment_intent?.id || null,
     items: pendingOrder.items.map((item) => ({
       id: crypto.randomUUID(),
       productId: item.productId,
@@ -1264,14 +1492,24 @@ const finalizePaidOrder = async (session) => withTransaction(async (client) => {
   }
 
   const { rows } = await client.query(
-    `INSERT INTO orders (id, stripe_session_id, user_id, status, created_at, customer, shipping, commission, total, items)
-     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10::jsonb)
+    `INSERT INTO orders
+       (id, stripe_session_id, stripe_payment_intent_id, user_id, status, created_at,
+        customer, shipping, commission, total, items)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11::jsonb)
      RETURNING id, user_id, status, created_at, customer, shipping, commission, total, items`,
     [
-      order.id, order.stripeSessionId, order.userId, order.status, order.createdAt,
+      order.id, order.stripeSessionId, order.paymentIntentId, order.userId, order.status, order.createdAt,
       JSON.stringify(order.customer), order.shipping, order.commission, order.total, JSON.stringify(order.items)
     ]
   )
+  for (const payout of getSellerPayouts(order.items)) {
+    await client.query(
+      `INSERT INTO seller_payouts (id, order_id, seller_id, amount, currency)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (order_id, seller_id) DO NOTHING`,
+      [crypto.randomUUID(), order.id, payout.sellerId, payout.amount, payout.currency]
+    )
+  }
   await client.query('DELETE FROM pending_orders WHERE session_id = $1', [session.id])
   return mapOrder(rows[0])
 })
@@ -1291,6 +1529,79 @@ const releasePendingOrder = async (sessionId) => withTransaction(async (client) 
     )
   }
   await client.query('DELETE FROM pending_orders WHERE session_id = $1', [sessionId])
+})
+
+const recordStripeRefund = async (refund) => withTransaction(async (client) => {
+  const { rows } = await client.query(
+    `SELECT id, status, total, return_status
+       FROM orders
+      WHERE refund_id = $1
+      FOR UPDATE`,
+    [refund.id]
+  )
+  const order = rows[0]
+  if (!order) return null
+
+  if (refund.status === 'succeeded') {
+    if (
+      refund.currency !== 'eur' ||
+      Number(refund.amount) !== Math.round(Number(order.total) * 100)
+    ) {
+      await client.query(
+        `UPDATE orders SET refund_status = 'none', refund_id = NULL
+          WHERE id = $1 AND status = 'paid'`,
+        [order.id]
+      )
+      return { orderId: order.id, status: 'partial' }
+    }
+
+    await client.query(
+      `UPDATE orders
+          SET status = 'refunded',
+              refund_status = 'refunded',
+              refund_id = $2,
+              fulfillment_status = 'cancelled',
+              fulfillment_updated_at = NOW(),
+              return_status = CASE
+                WHEN return_status IN ('requested', 'approved', 'received') THEN 'refunded'
+                ELSE return_status
+              END,
+              return_updated_at = CASE
+                WHEN return_status IN ('requested', 'approved', 'received') THEN NOW()
+                ELSE return_updated_at
+              END
+        WHERE id = $1`,
+      [order.id, refund.id]
+    )
+    await client.query(
+      `UPDATE seller_payouts
+          SET status = CASE
+                WHEN status = 'pending' THEN 'cancelled'
+                WHEN status = 'paid' THEN 'recovery_required'
+                ELSE status
+              END,
+              updated_at = NOW()
+        WHERE order_id = $1`,
+      [order.id]
+    )
+    return { orderId: order.id, status: 'refunded' }
+  }
+
+  if (refund.status === 'failed' || refund.status === 'canceled') {
+    await client.query(
+      `UPDATE orders
+          SET refund_status = 'none', refund_id = NULL
+        WHERE id = $1 AND status = 'paid'`,
+      [order.id]
+    )
+    return { orderId: order.id, status: 'failed' }
+  }
+
+  await client.query(
+    `UPDATE orders SET refund_status = 'pending', refund_id = $2 WHERE id = $1 AND status = 'paid'`,
+    [order.id, refund.id]
+  )
+  return { orderId: order.id, status: 'pending' }
 })
 
 app.post('/api/payments/confirm', requireAuth, requireRole('customer'), asyncRoute(async (req, res) => {
@@ -1334,6 +1645,8 @@ app.post('/api/webhooks/stripe', asyncRoute(async (req, res) => {
     await finalizePaidOrder(event.data.object)
   } else if (['checkout.session.expired', 'checkout.session.async_payment_failed'].includes(event.type)) {
     await releasePendingOrder(event.data.object.id)
+  } else if (event.type === 'refund.updated') {
+    await recordStripeRefund(event.data.object)
   }
   return res.json({ received: true })
 }))
@@ -1344,6 +1657,314 @@ app.get('/api/orders', requireAuth, requireAdmin, asyncRoute(async (_req, res) =
        FROM orders ORDER BY created_at DESC`
   )
   return res.json(rows.map(mapOrder))
+}))
+
+app.patch('/api/admin/orders/:id/fulfillment', requireAuth, requireAdmin, asyncRoute(async (req, res) => {
+  const status = req.body?.status
+  const carrier = req.body?.carrier === undefined
+    ? undefined
+    : typeof req.body.carrier === 'string' ? req.body.carrier.trim() : null
+  const trackingNumber = req.body?.trackingNumber === undefined
+    ? undefined
+    : typeof req.body.trackingNumber === 'string' ? req.body.trackingNumber.trim() : null
+  if (
+    typeof status !== 'string' ||
+    !fulfillmentStatuses.includes(status) ||
+    status === 'cancelled' ||
+    carrier === null ||
+    (carrier !== undefined && carrier.length > 100) ||
+    trackingNumber === null ||
+    (trackingNumber !== undefined && trackingNumber.length > 200)
+  ) {
+    return res.status(400).json({ message: 'Os dados de expedição são inválidos.' })
+  }
+
+  const order = await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      'SELECT id, status, fulfillment_status FROM orders WHERE id = $1 FOR UPDATE',
+      [req.params.id]
+    )
+    const current = rows[0]
+    if (!current) return { error: 'Encomenda não encontrada.', status: 404 }
+    if (current.status !== 'paid' ||
+        !canUpdateFulfillment(current.fulfillment_status, status, current.status === 'refunded')) {
+      return { error: 'Esta alteração não é permitida para o estado atual da encomenda.', status: 409 }
+    }
+
+    const { rows: updated } = await client.query(
+      `UPDATE orders
+          SET fulfillment_status = $2,
+              carrier = COALESCE($3, carrier),
+              tracking_number = COALESCE($4, tracking_number),
+              fulfillment_updated_at = NOW()
+        WHERE id = $1
+        RETURNING id, fulfillment_status, carrier, tracking_number, fulfillment_updated_at`,
+      [current.id, status, carrier, trackingNumber]
+    )
+    return updated[0]
+  })
+
+  if (order.error) return res.status(order.status).json({ message: order.error })
+  return res.json({
+    id: order.id,
+    status: order.fulfillment_status,
+    carrier: order.carrier || '',
+    trackingNumber: order.tracking_number || '',
+    updatedAt: order.fulfillment_updated_at
+  })
+}))
+
+app.patch('/api/admin/orders/:id/returns', requireAuth, requireAdmin, asyncRoute(async (req, res) => {
+  const status = req.body?.status
+  const reason = req.body?.reason === undefined
+    ? undefined
+    : typeof req.body.reason === 'string' ? req.body.reason.trim() : null
+  const carrier = req.body?.carrier === undefined
+    ? undefined
+    : typeof req.body.carrier === 'string' ? req.body.carrier.trim() : null
+  const trackingNumber = req.body?.trackingNumber === undefined
+    ? undefined
+    : typeof req.body.trackingNumber === 'string' ? req.body.trackingNumber.trim() : null
+  if (
+    typeof status !== 'string' ||
+    !returnStatuses.includes(status) ||
+    reason === null ||
+    (reason !== undefined && reason.length > 500) ||
+    carrier === null ||
+    (carrier !== undefined && carrier.length > 100) ||
+    trackingNumber === null ||
+    (trackingNumber !== undefined && trackingNumber.length > 200)
+  ) {
+    return res.status(400).json({ message: 'Os dados da devolução são inválidos.' })
+  }
+
+  const result = await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `SELECT id, status, return_status, return_reason
+         FROM orders
+        WHERE id = $1
+        FOR UPDATE`,
+      [req.params.id]
+    )
+    const current = rows[0]
+    if (!current) return { error: 'Encomenda não encontrada.', status: 404 }
+    if (current.status !== 'paid' || current.return_status === 'refunded') {
+      return { error: 'Só é possível gerir devoluções de encomendas pagas e não reembolsadas.', status: 409 }
+    }
+    if (!canUpdateReturn(current.return_status, status)) {
+      return { error: 'Esta alteração não é permitida para o estado atual da devolução.', status: 409 }
+    }
+    if (status === 'requested' && reason !== undefined && !reason) {
+      return { error: 'Indica o motivo da devolução.', status: 400 }
+    }
+    if (status === 'requested' && !reason && !current.return_reason) {
+      return { error: 'Indica o motivo da devolução.', status: 400 }
+    }
+
+    const { rows: updated } = await client.query(
+      `UPDATE orders
+          SET return_status = $2,
+              return_reason = COALESCE($3, return_reason),
+              return_carrier = COALESCE($4, return_carrier),
+              return_tracking_number = COALESCE($5, return_tracking_number),
+              return_requested_at = CASE
+                WHEN $2 = 'requested' AND return_status <> 'requested' THEN NOW()
+                ELSE return_requested_at
+              END,
+              return_updated_at = NOW()
+        WHERE id = $1
+        RETURNING id, return_status, return_reason, return_carrier, return_tracking_number,
+                  return_requested_at, return_updated_at`,
+      [current.id, status, reason ?? null, carrier ?? null, trackingNumber ?? null]
+    )
+    return updated[0]
+  })
+
+  if (result.error) return res.status(result.status).json({ message: result.error })
+  return res.json({
+    id: result.id,
+    status: result.return_status,
+    reason: result.return_reason || '',
+    carrier: result.return_carrier || '',
+    trackingNumber: result.return_tracking_number || '',
+    requestedAt: result.return_requested_at,
+    updatedAt: result.return_updated_at
+  })
+}))
+
+app.post('/api/admin/orders/:id/refund', requireAuth, requireAdmin, asyncRoute(async (req, res) => {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return res.status(503).json({ message: 'Reembolsos indisponíveis: STRIPE_SECRET_KEY não está configurada.' })
+  }
+
+  const current = await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `SELECT id, status, stripe_session_id, total, refund_status, refund_id, return_status
+         FROM orders
+        WHERE id = $1
+        FOR UPDATE`,
+      [req.params.id]
+    )
+    const order = rows[0]
+    if (!order) return { error: 'Encomenda não encontrada.', status: 404 }
+    if (order.status === 'refunded') return { alreadyRefunded: true, orderId: order.id }
+    if (order.status !== 'paid') {
+      return { error: 'Só é possível reembolsar uma encomenda paga.', status: 409 }
+    }
+    if (['requested', 'approved'].includes(order.return_status)) {
+      return { error: 'Regista primeiro a receção da devolução ou conclui a revisão do pedido.', status: 409 }
+    }
+    await client.query(
+      `UPDATE orders SET refund_status = 'pending' WHERE id = $1 AND refund_status <> 'refunded'`,
+      [order.id]
+    )
+    return order
+  })
+  if (current.error) return res.status(current.status).json({ message: current.error })
+  if (current.alreadyRefunded) return res.json({ id: current.orderId, status: 'refunded' })
+
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+  let refund
+  try {
+    if (current.refund_id) {
+      refund = await stripe.refunds.retrieve(current.refund_id)
+    } else {
+      const session = await stripe.checkout.sessions.retrieve(current.stripe_session_id, {
+        expand: ['payment_intent']
+      })
+      const paymentIntentId = typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id
+      if (!paymentIntentId) {
+        const error = new Error('O Stripe não devolveu o pagamento associado à encomenda.')
+        error.status = 409
+        throw error
+      }
+      refund = await stripe.refunds.create(
+        { payment_intent: paymentIntentId, amount: Math.round(Number(current.total) * 100) },
+        { idempotencyKey: `shopco-refund-${current.id}` }
+      )
+    }
+  } catch (stripeError) {
+    if (stripeError.type === 'StripeInvalidRequestError') {
+      await pool.query(
+        `UPDATE orders SET refund_status = 'none'
+          WHERE id = $1 AND status = 'paid' AND refund_id IS NULL`,
+        [current.id]
+      )
+      const error = new Error('O Stripe não permite um reembolso integral para este pagamento. Verifica no Stripe se já existem reembolsos.')
+      error.status = 409
+      throw error
+    }
+    if (stripeError.status) throw stripeError
+    const error = new Error('Não foi possível contactar o Stripe para processar o reembolso.')
+    error.status = 502
+    error.cause = stripeError
+    throw error
+  }
+
+  await pool.query(
+    `UPDATE orders SET refund_id = COALESCE(refund_id, $2)
+      WHERE id = $1 AND status = 'paid'`,
+    [current.id, refund.id]
+  )
+  const result = await recordStripeRefund(refund)
+  if (result?.status === 'partial') {
+    const error = new Error('O Stripe não confirmou um reembolso integral. Verifica o histórico do pagamento antes de voltar a tentar.')
+    error.status = 409
+    throw error
+  }
+  if (refund.status === 'failed' || refund.status === 'canceled') {
+    const error = new Error('O Stripe não conseguiu concluir o reembolso. Podes tentar novamente.')
+    error.status = 502
+    throw error
+  }
+  if (refund.status !== 'succeeded') {
+    return res.status(202).json({
+      id: current.id,
+      status: 'pending',
+      refundId: refund.id,
+      message: 'O Stripe ainda está a processar o reembolso.'
+    })
+  }
+  return res.json({ id: result?.orderId || current.id, status: 'refunded', refundId: refund.id })
+}))
+
+app.post('/api/admin/orders/:id/restock', requireAuth, requireAdmin, asyncRoute(async (req, res) => {
+  const result = await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `SELECT id, status, return_status, return_requested_at, restocked_at, items
+         FROM orders
+        WHERE id = $1
+        FOR UPDATE`,
+      [req.params.id]
+    )
+    const order = rows[0]
+    if (!order) return { error: 'Encomenda não encontrada.', status: 404 }
+    if (
+      order.status !== 'refunded' ||
+      order.return_status !== 'refunded' ||
+      !order.return_requested_at
+    ) {
+      return { error: 'Só podes repor no stock os artigos devolvidos e reembolsados.', status: 409 }
+    }
+    if (order.restocked_at) {
+      return { error: 'Os artigos desta encomenda já foram repostos no stock.', status: 409 }
+    }
+
+    let restoredProducts = 0
+    for (const item of order.items) {
+      if (!item.productId) continue
+      const updated = await client.query(
+        'UPDATE products SET stock = stock + $2 WHERE id = $1',
+        [item.productId, Number(item.quantity)]
+      )
+      if (updated.rowCount !== 1) {
+        const error = new Error(`O produto ${item.productId} já não existe no catálogo e não pode ser reposto.`)
+        error.status = 409
+        throw error
+      }
+      restoredProducts += updated.rowCount
+    }
+    const { rows: updated } = await client.query(
+      'UPDATE orders SET restocked_at = NOW() WHERE id = $1 RETURNING restocked_at',
+      [order.id]
+    )
+    return { restoredProducts, restockedAt: updated[0].restocked_at }
+  })
+  if (result.error) return res.status(result.status).json({ message: result.error })
+  return res.json({ ...result })
+}))
+
+app.patch('/api/admin/payouts/:id/settlement', requireAuth, requireAdmin, asyncRoute(async (req, res) => {
+  const transferReference = typeof req.body?.transferReference === 'string'
+    ? req.body.transferReference.trim()
+    : ''
+  if (!transferReference || transferReference.length > 120) {
+    return res.status(400).json({ message: 'Indica a referência do comprovativo (máximo 120 caracteres).' })
+  }
+
+  const payout = await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      'SELECT id, status FROM seller_payouts WHERE id = $1 FOR UPDATE',
+      [req.params.id]
+    )
+    const current = rows[0]
+    if (!current) return { error: 'Repasse não encontrado.', status: 404 }
+    const nextStatus = getPayoutSettlementStatus(current.status)
+    if (!nextStatus) return { error: 'Este repasse já não pode ser alterado.', status: 409 }
+
+    const { rows: updated } = await client.query(
+      `UPDATE seller_payouts
+          SET status = $2, transfer_reference = $3, settled_at = NOW(), updated_at = NOW()
+        WHERE id = $1
+        RETURNING id, status, transfer_reference, settled_at`,
+      [current.id, nextStatus, transferReference]
+    )
+    return updated[0]
+  })
+  if (payout.error) return res.status(payout.status).json({ message: payout.error })
+  return res.json(payout)
 }))
 
 app.use((error, _req, res, _next) => {

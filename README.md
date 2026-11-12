@@ -8,7 +8,7 @@ Loja de moda construída com React, Vite e uma API Express.
 - Registo de clientes e vendedores, início de sessão e gestão de produtos
 - Upload de foto de perfil para contas de cliente, vendedor e administrador
 - Produtos de vendedor sujeitos a aprovação do administrador
-- Dashboard administrativa com vendas, comissões, envios, encomendas, vendedores, aprovações e stock
+- Dashboard administrativa com indicadores de vendas, fornecedores, inventário, expedição, devoluções e repasses
 - Chat entre clientes e vendedores por produto
 - Custo de intermediação de 2% cobrado junto com os produtos
 - Comentários públicos sobre a experiência de compra, disponíveis para clientes com encomenda paga
@@ -51,7 +51,7 @@ npm run build
 
 ## Stripe
 
-Configure no `.env` uma chave de teste Stripe em `STRIPE_SECRET_KEY` e o segredo do webhook em `STRIPE_WEBHOOK_SECRET`. O webhook deve apontar para `POST /api/webhooks/stripe` e encaminhar os eventos `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed` e `checkout.session.expired`. Use Stripe CLI para desenvolvimento local.
+Configure no `.env` uma chave Stripe em `STRIPE_SECRET_KEY` e o segredo do webhook em `STRIPE_WEBHOOK_SECRET`. O webhook deve apontar para `POST /api/webhooks/stripe` e encaminhar os eventos `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired` e `refund.updated`. Use Stripe CLI para desenvolvimento local.
 
 Sem Stripe configurado, o checkout falha explicitamente; a aplicação nunca simula um pagamento concluído. A confirmação no regresso do checkout e o webhook usam a mesma operação idempotente para gravar a encomenda e atualizar o stock.
 
@@ -65,9 +65,9 @@ Clientes autenticados com pelo menos uma encomenda paga podem publicar um coment
 
 No registo, o utilizador escolhe entre cliente e vendedor. Os clientes podem indicar categorias, estilos, cores e orçamento preferidos; estas respostas ficam guardadas no perfil e ordenam as sugestões do catálogo após a autenticação. Vendedores publicam produtos com preço base em KZ; cada produto aguarda aprovação do administrador, e uma edição volta a colocá-lo na fila de aprovação. Clientes com sessão iniciada podem abrir uma conversa sobre qualquer produto publicado. As mensagens são guardadas na base de dados e atualizadas no chat a cada três segundos.
 
-O painel de administração apresenta indicadores de vendas, comissões, envios cobrados, encomendas, vendedores e stock, além de aprovações pendentes, checkouts por confirmar, produtos mais vendidos e encomendas recentes. Os dados atualizam-se automaticamente a cada minuto. O acompanhamento de recolha, expedição e entrega não está disponível, pois esses estados ainda não são registados pela aplicação.
+O painel de administração reúne vendas por período (7, 30 ou 90 dias), pagamentos, comissão, portes, clientes, fornecedores, catálogo, inventário baixo/esgotado, aprovações e checkouts por confirmar. Inclui desempenho por fornecedor, produtos vendidos e o fluxo operacional das encomendas. A equipa pode registar preparação, transportadora e código de envio, acompanhar devoluções e o respetivo rastreio inverso, solicitar reembolsos ao Stripe e repor no inventário artigos devolvidos.
 
-O checkout calcula uma comissão de intermediação de 2% sobre o preço base, mostra-a discriminada e inclui-a no valor cobrado. Preços em KZ são convertidos para EUR à cotação disponível no servidor antes de criar a sessão Stripe. A conta Stripe da loja recebe o pagamento completo; esta integração não automatiza o repasse da parte do vendedor, que deve ser feito manualmente. Os 2% representam a comissão da plataforma e não substituem taxas Stripe, impostos ou obrigações legais.
+Os repasses devidos aos vendedores são apurados por encomenda, incluindo as encomendas existentes quando o novo schema é aplicado. A dashboard permite registar a liquidação ou recuperação com a referência do comprovativo, mas não executa transferências bancárias. Um reembolso Stripe integral atualiza a encomenda e cancela repasses pendentes ou sinaliza a recuperação de repasses já liquidados. Os estados de transporte são registos manuais e não são sincronizados com transportadoras. O checkout calcula uma comissão de intermediação de 2% sobre o preço base, mostra-a discriminada e inclui-a no valor cobrado. Preços em KZ são convertidos para EUR à cotação disponível no servidor antes de criar a sessão Stripe. Os 2% representam a comissão da plataforma e não substituem taxas Stripe, impostos ou obrigações legais.
 
 ## Publicação
 

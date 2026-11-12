@@ -54,6 +54,29 @@ const formatAoa = (value) =>
   Number.isFinite(Number(value))
     ? `${new Intl.NumberFormat('pt-AO', { maximumFractionDigits: 0 }).format(Math.round(Number(value)))} KZ`
     : 'Cotação indisponível'
+const fulfillmentLabels = {
+  processing: 'Por preparar',
+  preparing: 'Em preparação',
+  ready_to_ship: 'Pronta para envio',
+  shipped: 'Expedida',
+  delivered: 'Entregue',
+  cancelled: 'Cancelada'
+}
+const returnLabels = {
+  none: 'Sem devolução',
+  requested: 'Solicitada',
+  approved: 'Aprovada',
+  rejected: 'Recusada',
+  received: 'Recebida',
+  refunded: 'Reembolsada'
+}
+const payoutLabels = {
+  pending: 'Por pagar',
+  paid: 'Pago',
+  recovery_required: 'Recuperação necessária',
+  recovered: 'Recuperado',
+  cancelled: 'Cancelado'
+}
 const formatPrice = (value, exchangeRate) => exchangeRate
   ? formatAoa(Number(value || 0) * exchangeRate)
   : 'Cotação indisponível'
@@ -1056,6 +1079,12 @@ function AdminPage({ products, pendingProducts, onApproveProduct, onSaveProduct,
   const [dashboardLoading, setDashboardLoading] = useState(true)
   const [dashboardError, setDashboardError] = useState('')
   const [dashboardUpdatedAt, setDashboardUpdatedAt] = useState(null)
+  const [period, setPeriod] = useState(30)
+  const [operationDrafts, setOperationDrafts] = useState({})
+  const [payoutReferences, setPayoutReferences] = useState({})
+  const [operationError, setOperationError] = useState('')
+  const [operationMessage, setOperationMessage] = useState('')
+  const [savingOperationId, setSavingOperationId] = useState('')
   const [form, setForm] = useState({
     id: '',
     name: '',
@@ -1075,20 +1104,85 @@ function AdminPage({ products, pendingProducts, onApproveProduct, onSaveProduct,
     setDashboardError('')
     setDashboardLoading(true)
     try {
-      setDashboard(await apiFetch('/admin/dashboard'))
+      setDashboard(await apiFetch(`/admin/dashboard?period=${period}`))
       setDashboardUpdatedAt(new Date())
     } catch (error) {
       setDashboardError(error.message || 'Não foi possível carregar os indicadores operacionais.')
     } finally {
       setDashboardLoading(false)
     }
-  }, [])
+  }, [period])
 
   useEffect(() => {
     loadDashboard()
     const timer = window.setInterval(loadDashboard, 60000)
     return () => window.clearInterval(timer)
   }, [loadDashboard])
+
+  const runOperation = async (id, endpoint, options, successMessage) => {
+    setSavingOperationId(id)
+    setOperationError('')
+    setOperationMessage('')
+    try {
+      const result = await apiFetch(endpoint, options)
+      setOperationMessage(result.message || successMessage)
+      setOperationDrafts((current) => {
+        const next = { ...current }
+        delete next[id]
+        return next
+      })
+      setPayoutReferences((current) => {
+        const next = { ...current }
+        delete next[id]
+        return next
+      })
+      await loadDashboard()
+    } catch (error) {
+      setOperationError(error.message || 'Não foi possível guardar a operação.')
+    } finally {
+      setSavingOperationId('')
+    }
+  }
+
+  const updateOperationDraft = (order, key, value) => {
+    setOperationDrafts((current) => ({
+      ...current,
+      [order.id]: {
+        fulfillmentStatus: order.fulfillmentStatus,
+        carrier: order.carrier,
+        trackingNumber: order.trackingNumber,
+        returnStatus: order.returnStatus,
+        returnReason: order.returnReason,
+        returnCarrier: order.returnCarrier,
+        returnTrackingNumber: order.returnTrackingNumber,
+        ...current[order.id],
+        [key]: value
+      }
+    }))
+  }
+
+  const chartRows = useMemo(() => {
+    if (!dashboard || period <= 30) return dashboard?.dailyOrders || []
+    const groups = []
+    for (let index = 0; index < dashboard.dailyOrders.length; index += 7) {
+      const days = dashboard.dailyOrders.slice(index, index + 7)
+      groups.push({
+        ...days[days.length - 1],
+        revenue: days.reduce((total, day) => total + day.revenue, 0),
+        paidOrders: days.reduce((total, day) => total + day.paidOrders, 0)
+      })
+    }
+    return groups
+  }, [dashboard, period])
+
+  const fulfillmentQueue = dashboard
+    ? Object.entries(dashboard.fulfillment).filter(([status]) => status !== 'cancelled')
+    : []
+  const payoutTotals = dashboard?.payouts.reduce((totals, payout) => {
+    const key = `${payout.status}:${payout.currency}`
+    totals[key] = (totals[key] || 0) + payout.amount
+    return totals
+  }, {}) || {}
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -1144,94 +1238,132 @@ function AdminPage({ products, pendingProducts, onApproveProduct, onSaveProduct,
         <div className="admin-section-heading">
           <div>
             <h2 id="admin-dashboard-title">Visão da cadeia de valor</h2>
-            <p>Vendas, fornecedores, aprovisionamento e inventário · atualização automática a cada minuto</p>
+            <p>Fornecedores, catálogo, stock, encomendas, expedição, devoluções e tesouraria · atualização a cada minuto</p>
           </div>
-          {dashboardUpdatedAt ? <span>Atualizado às {new Intl.DateTimeFormat('pt-PT', {
-            hour: '2-digit',
-            minute: '2-digit'
-          }).format(dashboardUpdatedAt)}</span> : null}
+          <div className="dashboard-period-controls">
+            <label>
+              Período de análise
+              <select value={period} onChange={(event) => setPeriod(Number(event.target.value))}>
+                <option value={7}>7 dias</option>
+                <option value={30}>30 dias</option>
+                <option value={90}>90 dias</option>
+              </select>
+            </label>
+            {dashboardUpdatedAt ? <span>Atualizado às {new Intl.DateTimeFormat('pt-PT', {
+              hour: '2-digit',
+              minute: '2-digit'
+            }).format(dashboardUpdatedAt)}</span> : null}
+          </div>
         </div>
         {dashboardError ? <p className="error-message" role="alert">{dashboardError}</p> : null}
+        {operationError ? <p className="error-message" role="alert">{operationError}</p> : null}
+        {operationMessage ? <p className="status-message" role="status">{operationMessage}</p> : null}
         {dashboardLoading && !dashboard ? <p role="status">A carregar indicadores operacionais...</p> : null}
         {dashboard ? (
           <>
             <div className="dashboard-kpis">
               <article className="card dashboard-kpi">
-                <span>Vendas recebidas</span>
+                <span>Vendas · {period} dias</span>
+                <strong>{formatEuro(dashboard.summary.revenueInPeriod)}</strong>
+                <small>{dashboard.summary.paidOrdersInPeriod} encomendas pagas</small>
+              </article>
+              <article className="card dashboard-kpi">
+                <span>Vendas acumuladas</span>
                 <strong>{formatEuro(dashboard.summary.revenue)}</strong>
-                <small>{dashboard.summary.paidOrders} encomendas pagas</small>
+                <small>{dashboard.summary.paidOrders} pagamentos · {dashboard.summary.refundedOrders} reembolsos</small>
               </article>
               <article className="card dashboard-kpi">
-                <span>Comissão da plataforma</span>
+                <span>Comissão acumulada</span>
                 <strong>{formatEuro(dashboard.summary.commission)}</strong>
-                <small>Sobre encomendas pagas</small>
+                <small>Receita da plataforma em encomendas pagas</small>
               </article>
               <article className="card dashboard-kpi">
-                <span>Valor médio por encomenda</span>
-                <strong>{formatEuro(dashboard.summary.paidOrders
-                  ? dashboard.summary.revenue / dashboard.summary.paidOrders
+                <span>Valor médio · {period} dias</span>
+                <strong>{formatEuro(dashboard.summary.paidOrdersInPeriod
+                  ? dashboard.summary.revenueInPeriod / dashboard.summary.paidOrdersInPeriod
                   : 0)}</strong>
                 <small>Inclui portes e comissão</small>
               </article>
               <article className="card dashboard-kpi">
-                <span>Envios cobrados</span>
+                <span>Envios cobrados acumulados</span>
                 <strong>{formatEuro(dashboard.summary.shipping)}</strong>
-                <small>Incluídos nos pagamentos</small>
+                <small>Incluídos nas encomendas pagas</small>
               </article>
               <article className="card dashboard-kpi">
-                <span>Vendas nos últimos 7 dias</span>
-                <strong>{dashboard.summary.paidOrdersLast7Days}</strong>
-                <small>Encomendas pagas</small>
+                <span>Clientes</span>
+                <strong>{dashboard.summary.customers}</strong>
+                <small>Contas registadas</small>
               </article>
               <article className="card dashboard-kpi">
-                <span>Vendedores</span>
+                <span>Fornecedores / vendedores</span>
                 <strong>{dashboard.summary.sellers}</strong>
-                <small>{dashboard.summary.approvedProducts} produtos publicados</small>
+                <small>{dashboard.summary.approvedProducts} publicados · {dashboard.summary.pendingProducts} por aprovar</small>
               </article>
               <article className="card dashboard-kpi">
-                <span>Unidades em stock</span>
+                <span>Stock disponível</span>
                 <strong>{dashboard.summary.stockUnits}</strong>
-                <small>{dashboard.summary.lowStock} produtos com stock baixo</small>
+                <small>{dashboard.summary.lowStock} baixo · {dashboard.summary.outOfStock} esgotados</small>
+              </article>
+              <article className="card dashboard-kpi">
+                <span>Checkout / pagamento</span>
+                <strong>{dashboard.summary.checkoutsAwaitingConfirmation}</strong>
+                <small>Pagamentos por confirmar</small>
+              </article>
+              <article className="card dashboard-kpi">
+                <span>Repasses pendentes</span>
+                <strong>{formatAoa(payoutTotals['pending:AOA'] || 0)}</strong>
+                <small>{formatEuro(payoutTotals['pending:EUR'] || 0)} em EUR</small>
               </article>
             </div>
 
-            <div className="dashboard-value-chain">
-              <article className="card value-chain-stage">
-                <span className="value-chain-label">Aprovisionamento</span>
-                <strong>{dashboard.summary.pendingProducts}</strong>
-                <span>produtos por aprovar</span>
-              </article>
-              <article className="card value-chain-stage">
-                <span className="value-chain-label">Disponibilidade</span>
-                <strong>{dashboard.summary.outOfStock}</strong>
-                <span>produtos sem stock</span>
-              </article>
-              <article className="card value-chain-stage">
-                <span className="value-chain-label">Pagamento</span>
-                <strong>{dashboard.summary.checkoutsAwaitingConfirmation}</strong>
-                <span>checkouts por confirmar</span>
-              </article>
-              <article className="card value-chain-stage">
-                <span className="value-chain-label">Pós-venda</span>
-                <strong>{dashboard.summary.refundedOrders}</strong>
-                <span>encomendas reembolsadas</span>
-              </article>
-            </div>
+            <section className="card dashboard-panel">
+              <h3>Fluxo de encomendas</h3>
+              <div className="dashboard-status-grid">
+                {fulfillmentQueue.map(([status, count]) => (
+                  <article className={`dashboard-status-card dashboard-status-${status}`} key={status}>
+                    <span>{fulfillmentLabels[status] || status}</span>
+                    <strong>{count}</strong>
+                  </article>
+                ))}
+              </div>
+              <div className="dashboard-status-grid dashboard-return-statuses">
+                {Object.entries(dashboard.returns)
+                  .filter(([status]) => status !== 'none')
+                  .map(([status, count]) => (
+                    <article className={`dashboard-status-card dashboard-status-${status}`} key={status}>
+                      <span>Devoluções · {returnLabels[status] || status}</span>
+                      <strong>{count}</strong>
+                    </article>
+                  ))}
+              </div>
+              <div className="dashboard-payout-summary">
+                {dashboard.payouts.map((payout) => (
+                  <span key={`${payout.status}:${payout.currency}`}>
+                    {payoutLabels[payout.status]} · {payout.count}: {payout.currency === 'AOA'
+                      ? formatAoa(payout.amount)
+                      : formatEuro(payout.amount)}
+                  </span>
+                ))}
+              </div>
+            </section>
 
             <div className="dashboard-detail-grid">
               <section className="card dashboard-panel">
-                <h3>Vendas — últimos 7 dias</h3>
-                <div className="dashboard-chart" role="img" aria-label="Vendas diárias em euros nos últimos sete dias">
-                  {dashboard.dailyOrders.map((day) => {
-                    const maxRevenue = Math.max(...dashboard.dailyOrders.map((entry) => entry.revenue))
+                <h3>Vendas · {period} dias</h3>
+                <div className="dashboard-chart" role="img" aria-label={`Vendas dos últimos ${period} dias`}>
+                  {chartRows.map((day) => {
+                    const maxRevenue = Math.max(...chartRows.map((entry) => entry.revenue))
                     const barHeight = maxRevenue > 0 ? (day.revenue / maxRevenue) * 100 : 0
+                    const date = new Date(`${day.day}T12:00:00`)
                     return (
                       <div className="dashboard-chart-day" key={day.day} title={`${day.paidOrders} encomendas · ${formatEuro(day.revenue)}`}>
                         <strong>{formatEuro(day.revenue)}</strong>
                         <div className="dashboard-chart-track">
                           <span className="dashboard-chart-bar" style={{ height: `${barHeight}%` }} />
                         </div>
-                        <span>{new Intl.DateTimeFormat('pt-PT', { weekday: 'short' }).format(new Date(`${day.day}T12:00:00`))}</span>
+                        <span>{period > 30
+                          ? new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: 'short' }).format(date)
+                          : new Intl.DateTimeFormat('pt-PT', { weekday: 'short', day: '2-digit' }).format(date)}</span>
                       </div>
                     )
                   })}
@@ -1240,7 +1372,7 @@ function AdminPage({ products, pendingProducts, onApproveProduct, onSaveProduct,
               </section>
 
               <section className="card dashboard-panel">
-                <h3>Produtos mais vendidos</h3>
+                <h3>Produtos mais vendidos · {period} dias</h3>
                 {dashboard.topProducts.length ? (
                   <ol className="dashboard-top-products">
                     {dashboard.topProducts.map((product) => (
@@ -1250,35 +1382,327 @@ function AdminPage({ products, pendingProducts, onApproveProduct, onSaveProduct,
                       </li>
                     ))}
                   </ol>
-                ) : <p>Ainda não existem vendas registadas.</p>}
-              </section>
-
-              <section className="card dashboard-panel dashboard-orders-panel">
-                <h3>Encomendas recentes</h3>
-                {dashboard.recentOrders.length ? (
-                  <div className="dashboard-table-wrap">
-                    <table className="dashboard-orders-table">
-                      <thead>
-                        <tr><th>Referência</th><th>Cliente</th><th>Data</th><th>Estado</th><th>Total</th></tr>
-                      </thead>
-                      <tbody>
-                        {dashboard.recentOrders.map((order) => (
-                          <tr key={order.id}>
-                            <td>{order.id}</td>
-                            <td>{order.customerName}</td>
-                            <td>{new Intl.DateTimeFormat('pt-PT', { dateStyle: 'short' }).format(new Date(order.createdAt))}</td>
-                            <td><span className={`order-status order-status-${order.status}`}>{order.status === 'paid' ? 'Paga' : 'Reembolsada'}</span></td>
-                            <td>{formatEuro(order.total)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : <p>Ainda não existem encomendas registadas.</p>}
+                ) : <p>Ainda não existem vendas neste período.</p>}
               </section>
             </div>
+
+            <section className="card dashboard-panel dashboard-orders-panel">
+              <h3>Alertas de inventário</h3>
+              {dashboard.inventoryAlerts.length ? (
+                <div className="dashboard-table-wrap">
+                  <table className="dashboard-orders-table">
+                    <thead>
+                      <tr><th>Produto</th><th>Categoria</th><th>Fornecedor</th><th>Disponível</th></tr>
+                    </thead>
+                    <tbody>
+                      {dashboard.inventoryAlerts.map((product) => (
+                        <tr key={product.id}>
+                          <td>{product.name}</td>
+                          <td>{product.category}</td>
+                          <td>{product.sellerName}</td>
+                          <td><span className={product.stock === 0 ? 'inventory-out' : 'inventory-low'}>
+                            {product.stock === 0 ? 'Esgotado' : `${product.stock} un.`}
+                          </span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <p>Não há alertas de stock neste momento.</p>}
+            </section>
+
+            <section className="card dashboard-panel dashboard-orders-panel">
+              <h3>Desempenho dos fornecedores</h3>
+              {dashboard.suppliers.length ? (
+                <div className="dashboard-table-wrap">
+                  <table className="dashboard-orders-table">
+                    <thead>
+                      <tr><th>Fornecedor</th><th>Produtos</th><th>Stock</th><th>Pedidos</th><th>Unidades vendidas</th><th>Repasses pendentes</th></tr>
+                    </thead>
+                    <tbody>
+                      {dashboard.suppliers.map((supplier) => (
+                        <tr key={supplier.id}>
+                          <td><strong>{supplier.name}</strong><br /><small>{supplier.email}</small></td>
+                          <td>{supplier.approvedProducts} publicados · {supplier.pendingProducts} por aprovar</td>
+                          <td>{supplier.stockUnits} un. · {supplier.lowStock} baixos</td>
+                          <td>{supplier.orders}</td>
+                          <td>{supplier.unitsSold}</td>
+                          <td>{supplier.pendingPayouts} · {supplier.recoveries} recuperações</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <p>Ainda não existem fornecedores registados.</p>}
+            </section>
+
+            <section className="card dashboard-panel dashboard-orders-panel">
+              <h3>Operações por encomenda</h3>
+              <p>Atualiza preparação e envio, regista devoluções, confirma reembolsos Stripe e repõe artigos recebidos.</p>
+              <div className="dashboard-operation-list">
+                {dashboard.operations.map((order) => {
+                  const draft = {
+                    fulfillmentStatus: order.fulfillmentStatus,
+                    carrier: order.carrier,
+                    trackingNumber: order.trackingNumber,
+                    returnStatus: order.returnStatus,
+                    returnReason: order.returnReason,
+                    returnCarrier: order.returnCarrier,
+                    returnTrackingNumber: order.returnTrackingNumber,
+                    ...operationDrafts[order.id]
+                  }
+                  const availableReturnStatuses = order.returnStatus === 'none'
+                    ? ['none', 'requested']
+                    : order.returnStatus === 'requested'
+                      ? ['requested', 'approved', 'rejected']
+                      : order.returnStatus === 'rejected'
+                        ? ['rejected', 'requested']
+                        : order.returnStatus === 'approved'
+                          ? ['approved', 'received']
+                          : [order.returnStatus]
+                  const isSaving = savingOperationId === order.id
+                  return (
+                    <details className="dashboard-operation" key={order.id}>
+                      <summary>
+                        <span><strong>{order.id}</strong> · {order.customerName} · {formatEuro(order.total)}</span>
+                        <span>{order.status === 'paid' ? 'Paga' : 'Reembolsada'} · {fulfillmentLabels[order.fulfillmentStatus]}</span>
+                      </summary>
+                      <div className="dashboard-operation-body">
+                        <p>{order.itemSummary || 'Artigos removidos do catálogo'} · Criada em {new Intl.DateTimeFormat('pt-PT', { dateStyle: 'short' }).format(new Date(order.createdAt))}</p>
+                        {order.deliveryAddress || order.customerEmail ? (
+                          <p>Entrega: {order.deliveryAddress || 'Morada não disponível'}{order.customerEmail ? ` · ${order.customerEmail}` : ''}</p>
+                        ) : null}
+                        <div className="dashboard-operation-grid">
+                          <label>
+                            Estado logístico
+                            <select
+                              value={draft.fulfillmentStatus}
+                              disabled={order.status !== 'paid' || order.fulfillmentStatus === 'cancelled'}
+                              onChange={(event) => updateOperationDraft(order, 'fulfillmentStatus', event.target.value)}
+                            >
+                              {Object.entries(fulfillmentLabels)
+                                .filter(([status]) => status !== 'cancelled' || order.fulfillmentStatus === 'cancelled')
+                                .map(([status, label]) => <option value={status} key={status}>{label}</option>)}
+                            </select>
+                          </label>
+                          <label>
+                            Transportadora
+                            <input
+                              maxLength={100}
+                              value={draft.carrier}
+                              onChange={(event) => updateOperationDraft(order, 'carrier', event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            Código de rastreio
+                            <input
+                              maxLength={200}
+                              value={draft.trackingNumber}
+                              onChange={(event) => updateOperationDraft(order, 'trackingNumber', event.target.value)}
+                            />
+                          </label>
+                        </div>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          disabled={isSaving || order.status !== 'paid'}
+                          onClick={() => runOperation(
+                            order.id,
+                            `/admin/orders/${encodeURIComponent(order.id)}/fulfillment`,
+                            {
+                              method: 'PATCH',
+                              body: JSON.stringify({
+                                status: draft.fulfillmentStatus,
+                                carrier: draft.carrier,
+                                trackingNumber: draft.trackingNumber
+                              })
+                            },
+                            'Estado de expedição atualizado.'
+                          )}
+                        >Guardar expedição</button>
+
+                        <div className="dashboard-operation-grid">
+                          <label>
+                            Estado da devolução
+                            <select
+                              value={draft.returnStatus}
+                              disabled={order.status !== 'paid' || order.returnStatus === 'refunded'}
+                              onChange={(event) => updateOperationDraft(order, 'returnStatus', event.target.value)}
+                            >
+                              {availableReturnStatuses.map((status) => (
+                                <option value={status} key={status}>{returnLabels[status] || status}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>
+                            Motivo / observação
+                            <input
+                              maxLength={500}
+                              value={draft.returnReason}
+                              onChange={(event) => updateOperationDraft(order, 'returnReason', event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            Transportadora da devolução
+                            <input
+                              maxLength={100}
+                              value={draft.returnCarrier}
+                              onChange={(event) => updateOperationDraft(order, 'returnCarrier', event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            Rastreio da devolução
+                            <input
+                              maxLength={200}
+                              value={draft.returnTrackingNumber}
+                              onChange={(event) => updateOperationDraft(order, 'returnTrackingNumber', event.target.value)}
+                            />
+                          </label>
+                        </div>
+                        <div className="dashboard-operation-actions">
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            disabled={isSaving || order.status !== 'paid' || order.returnStatus === 'refunded'}
+                            onClick={() => runOperation(
+                              order.id,
+                              `/admin/orders/${encodeURIComponent(order.id)}/returns`,
+                              {
+                                method: 'PATCH',
+                                body: JSON.stringify({
+                                  status: draft.returnStatus,
+                                  reason: draft.returnReason,
+                                  carrier: draft.returnCarrier,
+                                  trackingNumber: draft.returnTrackingNumber
+                                })
+                              },
+                              'Estado da devolução atualizado.'
+                            )}
+                          >Guardar devolução</button>
+                          {order.status === 'paid' ? (
+                            <button
+                              type="button"
+                              className="danger-button"
+                              disabled={isSaving || ['requested', 'approved'].includes(order.returnStatus)}
+                              onClick={() => {
+                                if (window.confirm(`Confirmas o reembolso total de ${formatEuro(order.total)} no Stripe?`)) {
+                                  runOperation(
+                                    order.id,
+                                    `/admin/orders/${encodeURIComponent(order.id)}/refund`,
+                                    { method: 'POST' },
+                                    'Reembolso solicitado ao Stripe.'
+                                  )
+                                }
+                              }}
+                            >{order.refundStatus === 'pending' ? 'Verificar reembolso Stripe' : 'Reembolsar no Stripe'}</button>
+                          ) : null}
+                          {order.status === 'refunded' && order.returnStatus === 'refunded' && order.returnRequestedAt ? (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              disabled={isSaving || Boolean(order.restockedAt)}
+                              onClick={() => runOperation(
+                                order.id,
+                                `/admin/orders/${encodeURIComponent(order.id)}/restock`,
+                                { method: 'POST' },
+                                'Artigos repostos no stock.'
+                              )}
+                            >{order.restockedAt ? 'Stock reposto' : 'Repor artigos no stock'}</button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </details>
+                  )
+                })}
+              </div>
+            </section>
+
+            <section className="card dashboard-panel dashboard-orders-panel">
+              <h3>Fila de devoluções e reembolsos</h3>
+              {dashboard.returnsQueue.length ? (
+                <div className="dashboard-table-wrap">
+                  <table className="dashboard-orders-table">
+                    <thead>
+                      <tr><th>Encomenda</th><th>Cliente</th><th>Devolução</th><th>Motivo</th><th>Rastreio</th><th>Reembolso</th><th>Stock</th></tr>
+                    </thead>
+                    <tbody>
+                      {dashboard.returnsQueue.map((entry) => (
+                        <tr key={entry.id}>
+                          <td>{entry.id}</td>
+                          <td>{entry.customerName}</td>
+                          <td>{returnLabels[entry.status]}</td>
+                          <td>{entry.reason || '—'}</td>
+                          <td>{entry.carrier ? `${entry.carrier} · ${entry.trackingNumber || 'sem código'}` : '—'}</td>
+                          <td>{entry.refundStatus === 'refunded' ? 'Concluído' : entry.refundStatus === 'pending' ? 'Em processamento' : '—'}</td>
+                          <td>{entry.restockedAt ? 'Reposto' : entry.status === 'refunded' ? 'Por repor' : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <p>Não há devoluções registadas.</p>}
+            </section>
+
+            <section className="card dashboard-panel dashboard-orders-panel">
+              <h3>Contas correntes de fornecedores</h3>
+              <p>Os pagamentos são executados fora da plataforma. Regista a referência do comprovativo depois de efetuar cada transferência.</p>
+              {dashboard.payoutsList.length ? (
+                <div className="dashboard-table-wrap">
+                  <table className="dashboard-orders-table">
+                    <thead>
+                      <tr><th>Fornecedor</th><th>Encomenda</th><th>Valor</th><th>Estado</th><th>Referência</th><th>Ação</th></tr>
+                    </thead>
+                    <tbody>
+                      {dashboard.payoutsList.map((payout) => {
+                        const nextStatus = payout.status === 'pending' ? 'paid' : payout.status === 'recovery_required' ? 'recovered' : null
+                        return (
+                          <tr key={payout.id}>
+                            <td>{payout.sellerName}</td>
+                            <td>{payout.orderId}</td>
+                            <td>{payout.currency === 'AOA' ? formatAoa(payout.amount) : formatEuro(payout.amount)}</td>
+                            <td>{payoutLabels[payout.status]}</td>
+                            <td>{payout.transferReference || '—'}</td>
+                            <td>
+                              {nextStatus ? (
+                                <div className="dashboard-payout-action">
+                                  <input
+                                    aria-label="Referência do comprovativo da transferência"
+                                    placeholder="Referência do comprovativo"
+                                    maxLength={120}
+                                    value={payoutReferences[payout.id] || ''}
+                                    onChange={(event) => setPayoutReferences((current) => ({
+                                      ...current,
+                                      [payout.id]: event.target.value
+                                    }))}
+                                  />
+                                  <button
+                                    type="button"
+                                    className="secondary-button"
+                                    disabled={savingOperationId === payout.id}
+                                    onClick={() => runOperation(
+                                      payout.id,
+                                      `/admin/payouts/${encodeURIComponent(payout.id)}/settlement`,
+                                      {
+                                        method: 'PATCH',
+                                        body: JSON.stringify({ transferReference: payoutReferences[payout.id] || '' })
+                                      },
+                                      nextStatus === 'paid' ? 'Pagamento ao fornecedor registado.' : 'Recuperação do repasse registada.'
+                                    )}
+                                  >{nextStatus === 'paid' ? 'Registar pagamento' : 'Confirmar recuperação'}</button>
+                                </div>
+                              ) : null}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <p>Não existem repasses de vendedores registados.</p>}
+            </section>
+
             <p className="dashboard-disclaimer">
-              O sistema regista o custo de envio no checkout, mas ainda não acompanha recolha, expedição ou entrega.
+              Os estados de expedição e os comprovativos de pagamento são registos administrativos. A aplicação não integra transportadoras nem executa transferências bancárias; os reembolsos são submetidos ao Stripe.
             </p>
           </>
         ) : null}

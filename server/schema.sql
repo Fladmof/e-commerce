@@ -70,6 +70,60 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS commission NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (commission >= 0);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS fulfillment_status TEXT NOT NULL DEFAULT 'processing';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS carrier TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_number TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS fulfillment_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS return_status TEXT NOT NULL DEFAULT 'none';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS return_reason TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS return_carrier TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS return_tracking_number TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS return_requested_at TIMESTAMPTZ;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS return_updated_at TIMESTAMPTZ;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_status TEXT NOT NULL DEFAULT 'none';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_id TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS stripe_payment_intent_id TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS restocked_at TIMESTAMPTZ;
+
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_fulfillment_status_check;
+ALTER TABLE orders ADD CONSTRAINT orders_fulfillment_status_check
+  CHECK (fulfillment_status IN ('processing', 'preparing', 'ready_to_ship', 'shipped', 'delivered', 'cancelled'));
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_return_status_check;
+ALTER TABLE orders ADD CONSTRAINT orders_return_status_check
+  CHECK (return_status IN ('none', 'requested', 'approved', 'rejected', 'received', 'refunded'));
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_refund_status_check;
+ALTER TABLE orders ADD CONSTRAINT orders_refund_status_check
+  CHECK (refund_status IN ('none', 'pending', 'refunded'));
+
+CREATE TABLE IF NOT EXISTS seller_payouts (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  seller_id TEXT NOT NULL REFERENCES users(id),
+  amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
+  currency TEXT NOT NULL CHECK (currency IN ('EUR', 'AOA')),
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'paid', 'recovery_required', 'recovered', 'cancelled')),
+  transfer_reference TEXT,
+  settled_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (order_id, seller_id)
+);
+
+INSERT INTO seller_payouts (id, order_id, seller_id, amount, currency, status)
+SELECT 'legacy-payout-' || orders.id || '-' || (item->>'sellerId'),
+       orders.id,
+       item->>'sellerId',
+       SUM((item->>'sellerUnitPrice')::numeric * (item->>'quantity')::integer),
+       MIN(COALESCE(item->>'sellerCurrency', 'EUR')),
+       CASE WHEN orders.status = 'refunded' THEN 'cancelled' ELSE 'pending' END
+  FROM orders
+  CROSS JOIN LATERAL jsonb_array_elements(orders.items) AS elements(item)
+ WHERE NULLIF(item->>'sellerId', '') IS NOT NULL
+   AND NULLIF(item->>'sellerUnitPrice', '') IS NOT NULL
+ GROUP BY orders.id, item->>'sellerId'
+HAVING SUM((item->>'sellerUnitPrice')::numeric * (item->>'quantity')::integer) > 0
+ON CONFLICT (order_id, seller_id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS purchase_reviews (
   id TEXT PRIMARY KEY,
@@ -98,7 +152,13 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE INDEX IF NOT EXISTS pending_orders_user_id_idx ON pending_orders(user_id);
 CREATE INDEX IF NOT EXISTS orders_user_id_created_at_idx ON orders(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS orders_created_at_idx ON orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS orders_fulfillment_status_created_at_idx ON orders(fulfillment_status, created_at DESC);
+CREATE INDEX IF NOT EXISTS orders_return_status_created_at_idx ON orders(return_status, created_at DESC);
+CREATE INDEX IF NOT EXISTS orders_refund_id_idx ON orders(refund_id);
+CREATE INDEX IF NOT EXISTS orders_payment_intent_id_idx ON orders(stripe_payment_intent_id);
 CREATE INDEX IF NOT EXISTS products_seller_id_idx ON products(seller_id);
+CREATE INDEX IF NOT EXISTS seller_payouts_status_created_at_idx ON seller_payouts(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS seller_payouts_seller_id_idx ON seller_payouts(seller_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS chat_conversations_customer_id_idx ON chat_conversations(customer_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS chat_conversations_seller_id_idx ON chat_conversations(seller_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS chat_messages_conversation_id_idx ON chat_messages(conversation_id, created_at);
