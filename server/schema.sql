@@ -47,29 +47,60 @@ ALTER TABLE products ADD CONSTRAINT products_price_currency_check
 
 CREATE TABLE IF NOT EXISTS pending_orders (
   session_id TEXT PRIMARY KEY,
+  payment_provider TEXT NOT NULL DEFAULT 'stripe',
+  payment_reference TEXT UNIQUE,
+  payment_amount NUMERIC(14, 2),
+  payment_currency TEXT NOT NULL DEFAULT 'EUR',
+  payment_expires_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ,
   user_id TEXT NOT NULL REFERENCES users(id),
   items JSONB NOT NULL CHECK (jsonb_typeof(items) = 'array'),
   shipping NUMERIC(12, 2) NOT NULL CHECK (shipping >= 0),
   commission NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (commission >= 0),
+  payment_shipping_amount NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (payment_shipping_amount >= 0),
+  payment_commission_amount NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (payment_commission_amount >= 0),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 ALTER TABLE pending_orders ADD COLUMN IF NOT EXISTS commission NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (commission >= 0);
+ALTER TABLE pending_orders ADD COLUMN IF NOT EXISTS payment_shipping_amount NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (payment_shipping_amount >= 0);
+ALTER TABLE pending_orders ADD COLUMN IF NOT EXISTS payment_commission_amount NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (payment_commission_amount >= 0);
+ALTER TABLE pending_orders ADD COLUMN IF NOT EXISTS payment_provider TEXT NOT NULL DEFAULT 'stripe';
+ALTER TABLE pending_orders ADD COLUMN IF NOT EXISTS payment_reference TEXT UNIQUE;
+ALTER TABLE pending_orders ADD COLUMN IF NOT EXISTS payment_amount NUMERIC(14, 2);
+ALTER TABLE pending_orders ADD COLUMN IF NOT EXISTS payment_currency TEXT NOT NULL DEFAULT 'EUR';
+ALTER TABLE pending_orders ADD COLUMN IF NOT EXISTS payment_expires_at TIMESTAMPTZ;
+ALTER TABLE pending_orders ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS orders (
   id TEXT PRIMARY KEY,
-  stripe_session_id TEXT NOT NULL UNIQUE,
+  stripe_session_id TEXT UNIQUE,
+  payment_provider TEXT NOT NULL DEFAULT 'stripe',
+  proxypay_reference TEXT UNIQUE,
+  proxypay_payment_id TEXT UNIQUE,
+  payment_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  payment_currency TEXT NOT NULL DEFAULT 'EUR',
   user_id TEXT NOT NULL REFERENCES users(id),
   status TEXT NOT NULL CHECK (status IN ('paid', 'refunded')),
   created_at TIMESTAMPTZ NOT NULL,
   customer JSONB NOT NULL,
   shipping NUMERIC(12, 2) NOT NULL CHECK (shipping >= 0),
   commission NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (commission >= 0),
+  payment_shipping_amount NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (payment_shipping_amount >= 0),
+  payment_commission_amount NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (payment_commission_amount >= 0),
   total NUMERIC(12, 2) NOT NULL CHECK (total >= 0),
   items JSONB NOT NULL CHECK (jsonb_typeof(items) = 'array')
 );
 
+ALTER TABLE orders ALTER COLUMN stripe_session_id DROP NOT NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_provider TEXT NOT NULL DEFAULT 'stripe';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS proxypay_reference TEXT UNIQUE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS proxypay_payment_id TEXT UNIQUE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_amount NUMERIC(14, 2) NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_currency TEXT NOT NULL DEFAULT 'EUR';
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS commission NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (commission >= 0);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_shipping_amount NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (payment_shipping_amount >= 0);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_commission_amount NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (payment_commission_amount >= 0);
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS fulfillment_status TEXT NOT NULL DEFAULT 'processing';
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS carrier TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_number TEXT;
@@ -150,6 +181,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 );
 
 CREATE INDEX IF NOT EXISTS pending_orders_user_id_idx ON pending_orders(user_id);
+CREATE INDEX IF NOT EXISTS pending_orders_payment_reference_idx ON pending_orders(payment_reference);
 CREATE INDEX IF NOT EXISTS orders_user_id_created_at_idx ON orders(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS orders_created_at_idx ON orders(created_at DESC);
 CREATE INDEX IF NOT EXISTS orders_fulfillment_status_created_at_idx ON orders(fulfillment_status, created_at DESC);

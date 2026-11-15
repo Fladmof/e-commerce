@@ -1,5 +1,7 @@
 import express from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
 import multer from 'multer'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
@@ -12,7 +14,19 @@ import { fileURLToPath } from 'url'
 import { initializeDatabase, mapOrder, mapProduct, pool, withTransaction } from './database.js'
 import { resolveCartItems } from './shop.js'
 import { deleteStoredImage, localStorageEnabled, storeImage } from './storage.js'
-import { calculateDeliveryQuote, convertAoaToEurCents, validateCoordinates } from './shipping.js'
+import {
+  calculateDeliveryQuote,
+  convertAoaToEurCents,
+  getDrivingDistance,
+  searchDeliveryLocations,
+  validateCoordinates
+} from './shipping.js'
+import {
+  calculateProxyPayTotals,
+  createProxyPayClient,
+  parseAoaCents,
+  verifyProxyPaySignature
+} from './proxypay.js'
 import { emptyStylePreferences, normalizeStylePreferences } from '../shared/style-preferences.js'
 import {
   canUpdateFulfillment,
@@ -28,12 +42,28 @@ dotenv.config()
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.PORT || 4000)
 const isProduction = process.env.NODE_ENV === 'production'
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || ''
+const PROXYPAY_API_URL = process.env.PROXYPAY_API_URL ||
+  'https://api.sandbox.proxypay.co.ao'
+const PROXYPAY_API_KEY = process.env.PROXYPAY_API_KEY || ''
+const PROXYPAY_ENTITY_ID = process.env.PROXYPAY_ENTITY_ID || ''
+const PROXYPAY_WEBHOOK_URL = process.env.PROXYPAY_WEBHOOK_URL || ''
+const hasValidProxyPayWebhookUrl = () => {
+  try {
+    const url = new URL(PROXYPAY_WEBHOOK_URL)
+    return url.protocol === 'https:' &&
+      !url.username &&
+      !url.password &&
+      url.pathname === '/api/webhooks/proxypay' &&
+      !url.search &&
+      !url.hash
+  } catch {
+    return false
+  }
+}
 const JWT_SECRET = process.env.JWT_SECRET || (isProduction ? '' : 'shopco-local-development-secret')
 if (isProduction && JWT_SECRET.length < 32) {
   throw new Error('Em produção, JWT_SECRET deve ter pelo menos 32 caracteres.')
-}
-if (isProduction && (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET)) {
-  throw new Error('Em produção, configure STRIPE_SECRET_KEY e STRIPE_WEBHOOK_SECRET.')
 }
 if (isProduction) {
   let frontendUrl
@@ -56,9 +86,40 @@ if (isProduction) {
   ) {
     throw new Error('Em produção, configure o bucket S3, as credenciais e S3_PUBLIC_BASE_URL.')
   }
+  if (!PROXYPAY_API_KEY || !/^\d{1,5}$/.test(PROXYPAY_ENTITY_ID)) {
+    throw new Error('Em produção, configure PROXYPAY_API_KEY e um PROXYPAY_ENTITY_ID válido.')
+  }
+  let proxypayApiUrl
+  let proxypayWebhookUrl
+  try {
+    proxypayApiUrl = new URL(PROXYPAY_API_URL)
+    proxypayWebhookUrl = new URL(PROXYPAY_WEBHOOK_URL)
+  } catch {
+    throw new Error('Em produção, configure PROXYPAY_API_URL e PROXYPAY_WEBHOOK_URL válidos.')
+  }
+  if (
+    proxypayApiUrl.protocol !== 'https:' ||
+    proxypayApiUrl.origin !== 'https://api.proxypay.co.ao' ||
+    proxypayApiUrl.pathname !== '/' ||
+    proxypayApiUrl.search ||
+    proxypayApiUrl.hash ||
+    proxypayWebhookUrl.protocol !== 'https:' ||
+    proxypayWebhookUrl.username ||
+    proxypayWebhookUrl.password ||
+    proxypayWebhookUrl.pathname !== '/api/webhooks/proxypay' ||
+    proxypayWebhookUrl.search ||
+    proxypayWebhookUrl.hash
+  ) {
+    throw new Error('Em produção, use a API oficial ProxyPay e um webhook HTTPS sem parâmetros em /api/webhooks/proxypay.')
+  }
 }
 
 const app = express()
+if (process.env.TRUST_PROXY) {
+  const trustProxy = process.env.TRUST_PROXY
+  app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy)
+}
+app.use(helmet())
 const configuredOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:5173')
   .split(',')
   .map((origin) => {
@@ -81,6 +142,21 @@ app.use(cors({
     callback(new Error('Origem não autorizada pelo CORS'))
   }
 }))
+app.use('/api/webhooks/proxypay', express.raw({ type: 'application/json' }))
+app.use('/api', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Demasiados pedidos. Tenta novamente mais tarde.' }
+}))
+const authenticationRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Demasiadas tentativas. Tenta novamente dentro de alguns minutos.' }
+})
 app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }))
 app.use(express.json({ limit: '1mb' }))
 if (localStorageEnabled) {
@@ -229,59 +305,6 @@ const getProductsByIds = async (client, ids, { lock = false } = {}) => {
   return rows.map(mapProduct)
 }
 
-const getDrivingDistance = async (origin, destination) => {
-  const apiKey = process.env.OPENROUTESERVICE_API_KEY
-  if (!apiKey) {
-    const error = new Error('O cálculo de envio requer OPENROUTESERVICE_API_KEY.')
-    error.status = 503
-    throw error
-  }
-  let response
-  try {
-    response = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {
-      method: 'POST',
-      headers: {
-        Authorization: apiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        coordinates: [
-          [origin.longitude, origin.latitude],
-          [destination.longitude, destination.latitude]
-        ],
-        instructions: false
-      }),
-      signal: AbortSignal.timeout(10000)
-    })
-  } catch (error) {
-    const routeError = new Error('Não foi possível contactar o serviço de rotas.')
-    routeError.status = 502
-    routeError.cause = error
-    throw routeError
-  }
-  if (!response.ok) {
-    const error = new Error('O serviço de rotas não conseguiu calcular o percurso.')
-    error.status = 502
-    throw error
-  }
-  let data
-  try {
-    data = await response.json()
-  } catch (error) {
-    const routeError = new Error('O serviço de rotas devolveu uma resposta inválida.')
-    routeError.status = 502
-    routeError.cause = error
-    throw routeError
-  }
-  const distance = data?.features?.[0]?.properties?.summary?.distance
-  if (!Number.isFinite(distance) || distance < 0) {
-    const error = new Error('O serviço de rotas não encontrou um percurso válido entre as localizações.')
-    error.status = 422
-    throw error
-  }
-  return distance
-}
-
 const getShippingQuote = async (requestedItems, buyerLocation, { client = pool } = {}) => {
   if (
     !Array.isArray(requestedItems) ||
@@ -329,11 +352,15 @@ const getShippingQuote = async (requestedItems, buyerLocation, { client = pool }
     productsWithSellerNames,
     destination,
     sellers,
-    getDrivingDistance
+    (origin, target) => getDrivingDistance(origin, target, { apiKey: GOOGLE_MAPS_API_KEY })
   )
+  const paymentTotals = calculateProxyPayTotals(items, aoaPerEur, delivery.totalAoa)
   const shippingEurCents = convertAoaToEurCents(delivery.totalAoa, aoaPerEur)
   return {
     ...delivery,
+    subtotalAoa: paymentTotals.subtotalAoa,
+    commissionAoa: paymentTotals.commissionAoa,
+    paymentAmountAoa: paymentTotals.totalAoa,
     items,
     exchangeRate: aoaPerEur,
     shippingEurCents,
@@ -517,7 +544,7 @@ app.post('/api/reviews', requireAuth, asyncRoute(async (req, res) => {
   })
 }))
 
-app.post('/api/auth/register', asyncRoute(async (req, res) => {
+app.post('/api/auth/register', authenticationRateLimit, asyncRoute(async (req, res) => {
   const { name, email, password } = req.body || {}
   const role = req.body?.role
   const stylePreferences = normalizeStylePreferences(req.body?.stylePreferences)
@@ -569,7 +596,7 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
   return res.status(201).json({ token: signToken(user), user: sanitizeUser(user) })
 }))
 
-app.post('/api/auth/login', asyncRoute(async (req, res) => {
+app.post('/api/auth/login', authenticationRateLimit, asyncRoute(async (req, res) => {
   const { email, password } = req.body || {}
   if (
     typeof email !== 'string' ||
@@ -888,10 +915,11 @@ app.get('/api/admin/dashboard', requireAuth, requireAdmin, asyncRoute(async (req
               customer->>'address' AS delivery_address,
               customer->>'city' AS delivery_city,
               customer->>'country' AS delivery_country,
+              payment_provider,
               fulfillment_status, carrier, tracking_number, fulfillment_updated_at,
               return_status, return_reason, return_carrier, return_tracking_number,
               return_requested_at, return_updated_at,
-              refund_status, restocked_at,
+              refund_status, refund_id, restocked_at,
               (SELECT string_agg(
                  COALESCE(products.name, 'Produto removido') || ' × ' || (item->>'quantity'),
                  ', '
@@ -1004,6 +1032,7 @@ app.get('/api/admin/dashboard', requireAuth, requireAdmin, asyncRoute(async (req
       status: row.status,
       createdAt: row.created_at,
       total: Number(row.total),
+      paymentProvider: row.payment_provider || 'stripe',
       customerName: row.customer_name || 'Cliente',
       customerEmail: row.customer_email || '',
       deliveryAddress: [row.delivery_address, row.delivery_city, row.delivery_country].filter(Boolean).join(', '),
@@ -1018,6 +1047,7 @@ app.get('/api/admin/dashboard', requireAuth, requireAdmin, asyncRoute(async (req
       returnRequestedAt: row.return_requested_at,
       returnUpdatedAt: row.return_updated_at,
       refundStatus: row.refund_status,
+      refundReference: row.refund_id?.replace(/^proxypay-manual:/, '') || '',
       restockedAt: row.restocked_at,
       itemSummary: row.item_summary || ''
     })),
@@ -1293,62 +1323,35 @@ app.post('/api/shipping/quote', requireAuth, requireRole('customer'), asyncRoute
   return res.json({
     sellers: quote.sellers,
     totalAoa: quote.totalAoa,
+    subtotalAoa: quote.subtotalAoa,
+    commissionAoa: quote.commissionAoa,
+    paymentAmountAoa: quote.paymentAmountAoa,
     exchangeRate: quote.exchangeRate,
     shippingEur: quote.shippingEur
   })
 }))
 
+app.post('/api/shipping/locations', requireAuth, requireRole('customer'), asyncRoute(async (req, res) => {
+  const locations = await searchDeliveryLocations(req.body?.query, { apiKey: GOOGLE_MAPS_API_KEY })
+  return res.json({ locations })
+}))
+
 app.post('/api/payments/create-checkout-session', requireAuth, requireRole('customer'), asyncRoute(async (req, res) => {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    return res.status(503).json({ message: 'Pagamentos indisponíveis: STRIPE_SECRET_KEY não está configurada.' })
+  if (!PROXYPAY_API_KEY || !/^\d{1,5}$/.test(PROXYPAY_ENTITY_ID) || !hasValidProxyPayWebhookUrl()) {
+    return res.status(503).json({ message: 'Pagamentos ProxyPay indisponíveis: configura a chave API, entidade e URL pública do webhook.' })
   }
 
   const shippingQuote = await getShippingQuote(req.body?.items, req.body?.buyerLocation)
   const { items, exchangeRate: aoaPerEur } = shippingQuote
 
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
-  const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '')
-  const shipping = {
-    name: `Envio (${shippingQuote.totalAoa} AOA)`,
-    amount: shippingQuote.shippingEurCents
-  }
-  const commissionTotal = items.reduce((sum, item) => sum + item.commissionAmount * item.quantity, 0)
-  const session = await stripe.checkout.sessions.create({
-    mode: 'payment',
-    customer_email: req.user.email,
-    client_reference_id: req.user.sub,
-    metadata: { userId: req.user.sub },
-    success_url: `${frontendUrl}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${frontendUrl}/checkout?cancelled=1`,
-    shipping_address_collection: { allowed_countries: ['PT'] },
-    line_items: [
-      ...items.map(({ product, quantity, unitAmount }) => ({
-        price_data: {
-          currency: 'eur',
-          product_data: { name: product.name },
-          unit_amount: unitAmount
-        },
-        quantity
-      })),
-      ...(commissionTotal > 0 ? [{
-          price_data: {
-            currency: 'eur',
-            product_data: { name: 'Custo de intermediação (2%)' },
-            unit_amount: commissionTotal
-          },
-          quantity: 1
-      }] : []),
-      {
-        price_data: {
-          currency: 'eur',
-          product_data: { name: shipping.name },
-          unit_amount: shipping.amount
-        },
-        quantity: 1
-      }
-    ]
+  const proxypay = createProxyPayClient({
+    apiKey: PROXYPAY_API_KEY,
+    baseUrl: PROXYPAY_API_URL
   })
-
+  const referenceId = await proxypay.generateReferenceId()
+  const pendingOrderId = crypto.randomUUID()
+  const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000)
+  const releaseAt = new Date(expiresAt.getTime() + 24 * 60 * 60 * 1000)
   try {
     await withTransaction(async (client) => {
       const lockedProducts = await getProductsByIds(
@@ -1369,6 +1372,12 @@ app.post('/api/payments/create-checkout-session', requireAuth, requireRole('cust
         error.status = 409
         throw error
       }
+      const currentTotals = calculateProxyPayTotals(currentItems, aoaPerEur, shippingQuote.totalAoa)
+      if (currentTotals.totalAoa !== shippingQuote.paymentAmountAoa) {
+        const error = new Error('O total do carrinho mudou. Atualiza o checkout e tenta novamente.')
+        error.status = 409
+        throw error
+      }
 
       for (const item of currentItems) {
         const result = await client.query(
@@ -1384,32 +1393,58 @@ app.post('/api/payments/create-checkout-session', requireAuth, requireRole('cust
       const currentCommissionTotal = currentItems.reduce(
         (sum, item) => sum + item.commissionAmount * item.quantity, 0
       )
+      const paymentLineItems = new Map(currentTotals.lineItems.map((item) => [item.productId, item]))
       await client.query(
-        `INSERT INTO pending_orders (session_id, user_id, items, shipping, commission)
-         VALUES ($1, $2, $3::jsonb, $4, $5)`,
+        `INSERT INTO pending_orders
+           (session_id, payment_provider, payment_reference, payment_amount, payment_currency,
+              payment_expires_at, expires_at, user_id, items, shipping, commission,
+              payment_shipping_amount, payment_commission_amount)
+           VALUES ($1, 'proxypay', $2, $3, 'AOA', $4, $5, $6, $7::jsonb, $8, $9, $10, $11)`,
         [
-          session.id,
+          pendingOrderId,
+          referenceId,
+          currentTotals.totalAoa,
+          expiresAt,
+          releaseAt,
           req.user.sub,
-          JSON.stringify(currentItems.map(({ product, quantity, unitAmount, commissionAmount }) => ({
-            productId: product.id,
-            sellerId: product.sellerId,
-            name: product.name,
-            quantity,
-            unitPrice: unitAmount / 100,
-            commissionUnitPrice: commissionAmount / 100,
-            sellerUnitPrice: product.price,
-            sellerCurrency: product.priceCurrency
-          }))),
-          shipping.amount / 100,
-          currentCommissionTotal / 100
+          JSON.stringify(currentItems.map(({ product, quantity, unitAmount, commissionAmount }) => {
+            const paymentLineItem = paymentLineItems.get(product.id)
+            return {
+              productId: product.id,
+              sellerId: product.sellerId,
+              name: product.name,
+              quantity,
+              unitPrice: unitAmount / 100,
+              commissionUnitPrice: commissionAmount / 100,
+              sellerUnitPrice: product.price,
+              sellerCurrency: product.priceCurrency,
+              unitPriceAoa: paymentLineItem.unitPriceAoa,
+              commissionUnitPriceAoa: paymentLineItem.commissionUnitPriceAoa
+            }
+          })),
+          shippingQuote.shippingEur,
+          currentCommissionTotal / 100,
+          currentTotals.shippingAoa,
+          currentTotals.commissionAoa
         ]
       )
     })
+    await proxypay.createReference(referenceId, {
+      amount: shippingQuote.paymentAmountAoa,
+      endDatetime: expiresAt.toISOString(),
+      orderId: pendingOrderId,
+      callbackUrl: PROXYPAY_WEBHOOK_URL
+    })
   } catch (error) {
     try {
-      await stripe.checkout.sessions.expire(session.id)
-    } catch (expirationError) {
-      console.error('Não foi possível expirar sessão Stripe após falha ao reservar stock.', expirationError)
+      await proxypay.deleteReference(referenceId)
+    } catch (cleanupError) {
+      console.error('Não foi possível cancelar a referência ProxyPay criada parcialmente.', cleanupError)
+    }
+    try {
+      await releasePendingOrder(pendingOrderId)
+    } catch (cleanupError) {
+      console.error('Não foi possível libertar o stock reservado para a referência ProxyPay.', cleanupError)
     }
     if (error.status === 409 || error.status === 400) {
       return res.status(error.status).json({ message: error.message })
@@ -1417,7 +1452,13 @@ app.post('/api/payments/create-checkout-session', requireAuth, requireRole('cust
     throw error
   }
 
-  return res.status(201).json({ sessionId: session.id, url: session.url })
+  return res.status(201).json({
+    paymentProvider: 'proxypay',
+    referenceId,
+    entityId: PROXYPAY_ENTITY_ID,
+    amountAoa: shippingQuote.paymentAmountAoa,
+    expiresAt: expiresAt.toISOString()
+  })
 }))
 
 const finalizePaidOrder = async (session) => withTransaction(async (client) => {
@@ -1482,6 +1523,7 @@ const finalizePaidOrder = async (session) => withTransaction(async (client) => {
     items: pendingOrder.items.map((item) => ({
       id: crypto.randomUUID(),
       productId: item.productId,
+      name: item.name || item.productId,
       sellerId: item.sellerId || null,
       quantity: Number(item.quantity),
       unitPrice: Number(item.unitPrice),
@@ -1514,6 +1556,177 @@ const finalizePaidOrder = async (session) => withTransaction(async (client) => {
   return mapOrder(rows[0])
 })
 
+const finalizeProxyPayPayment = async (payment) => withTransaction(async (client) => {
+  const referenceId = String(payment?.reference_id ?? '')
+  const paymentId = String(payment?.id ?? '')
+  const entityId = String(payment?.entity_id ?? '')
+  const amountCents = parseAoaCents(payment?.amount)
+  const amount = amountCents === null ? Number.NaN : amountCents / 100
+  if (
+    !/^\d{1,12}$/.test(referenceId) ||
+    !/^\d{1,12}$/.test(paymentId) ||
+    entityId !== PROXYPAY_ENTITY_ID ||
+    amountCents === null ||
+    amountCents <= 0
+  ) {
+    const error = new Error('Os dados do pagamento ProxyPay são inválidos.')
+    error.status = 400
+    throw error
+  }
+
+  const { rows: duplicatePayments } = await client.query(
+    `SELECT id, user_id, status, created_at, customer, shipping, commission, total, items,
+            payment_provider, proxypay_reference, payment_amount, payment_currency
+       FROM orders
+      WHERE proxypay_payment_id = $1
+      FOR UPDATE`,
+    [paymentId]
+  )
+  if (duplicatePayments[0]) {
+    if (
+      duplicatePayments[0].proxypay_reference !== referenceId ||
+      Math.round(Number(duplicatePayments[0].payment_amount) * 100) !== amountCents
+    ) {
+      const error = new Error('O pagamento ProxyPay repetido não corresponde à encomenda original.')
+      error.status = 409
+      throw error
+    }
+    return mapOrder(duplicatePayments[0])
+  }
+
+  const { rows: existingOrders } = await client.query(
+    `SELECT id, proxypay_payment_id
+       FROM orders
+      WHERE proxypay_reference = $1
+      FOR UPDATE`,
+    [referenceId]
+  )
+  if (existingOrders[0]) {
+    const error = new Error('A referência ProxyPay já foi paga. O pagamento adicional requer reconciliação manual.')
+    error.status = 409
+    throw error
+  }
+
+  const { rows: pendingRows } = await client.query(
+    `SELECT session_id, user_id, items, shipping, commission, payment_amount, payment_currency,
+            payment_shipping_amount, payment_commission_amount
+       FROM pending_orders
+      WHERE payment_provider = 'proxypay' AND payment_reference = $1
+      FOR UPDATE`,
+    [referenceId]
+  )
+  const pendingOrder = pendingRows[0]
+  if (!pendingOrder) {
+    const { rows: completedOrders } = await client.query(
+      `SELECT id, user_id, status, created_at, customer, shipping, commission, total, items,
+              payment_provider, proxypay_reference, proxypay_payment_id, payment_amount,
+              payment_currency, payment_shipping_amount, payment_commission_amount
+         FROM orders
+        WHERE proxypay_reference = $1
+        FOR UPDATE`,
+      [referenceId]
+    )
+    if (completedOrders[0]) {
+      if (
+        completedOrders[0].proxypay_payment_id === paymentId &&
+        Math.round(Number(completedOrders[0].payment_amount) * 100) === amountCents
+      ) {
+        return mapOrder(completedOrders[0])
+      }
+      const error = new Error('A referência ProxyPay já foi paga por outra notificação.')
+      error.status = 409
+      throw error
+    }
+    const error = new Error('Não foi encontrada uma encomenda pendente para esta referência ProxyPay.')
+    error.status = 404
+    throw error
+  }
+  if (
+    payment.custom_fields?.order_id !== pendingOrder.session_id ||
+    pendingOrder.payment_currency !== 'AOA' ||
+    Math.round(Number(pendingOrder.payment_amount) * 100) !== amountCents
+  ) {
+    const error = new Error('O valor ou a encomenda não correspondem à referência ProxyPay.')
+    error.status = 409
+    throw error
+  }
+
+  const { rows: users } = await client.query(
+    'SELECT name, email FROM users WHERE id = $1',
+    [pendingOrder.user_id]
+  )
+  if (!users[0]) {
+    const error = new Error('O cliente associado ao pagamento ProxyPay não existe.')
+    error.status = 409
+    throw error
+  }
+
+  const orderTotalEur = pendingOrder.items.reduce(
+    (sum, item) => sum + Number(item.unitPrice) * Number(item.quantity),
+    Number(pendingOrder.shipping) + Number(pendingOrder.commission || 0)
+  )
+  const parsedDate = Date.parse(payment.datetime)
+  const createdAt = Number.isFinite(parsedDate) ? new Date(parsedDate).toISOString() : new Date().toISOString()
+  const order = {
+    id: `order-proxypay-${referenceId}`,
+    userId: pendingOrder.user_id,
+    status: 'paid',
+    createdAt,
+    customer: {
+      name: users[0].name,
+      email: users[0].email,
+      address: '',
+      city: '',
+      country: 'AO'
+    },
+    shipping: Number(pendingOrder.shipping),
+    commission: Number(pendingOrder.commission || 0),
+    paymentShippingAmount: Number(pendingOrder.payment_shipping_amount || 0),
+    paymentCommissionAmount: Number(pendingOrder.payment_commission_amount || 0),
+    total: Math.round(orderTotalEur * 100) / 100,
+    items: pendingOrder.items.map((item) => ({
+      id: crypto.randomUUID(),
+      productId: item.productId,
+      name: item.name || item.productId,
+      sellerId: item.sellerId || null,
+      quantity: Number(item.quantity),
+      unitPrice: Number(item.unitPrice),
+      commissionUnitPrice: Number(item.commissionUnitPrice || 0),
+      unitPriceAoa: Number(item.unitPriceAoa || 0),
+      commissionUnitPriceAoa: Number(item.commissionUnitPriceAoa || 0),
+      sellerUnitPrice: Number(item.sellerUnitPrice ?? item.unitPrice),
+      sellerCurrency: item.sellerCurrency || 'EUR'
+    }))
+  }
+  const { rows } = await client.query(
+    `INSERT INTO orders
+       (id, stripe_session_id, payment_provider, proxypay_reference, proxypay_payment_id,
+        payment_amount, payment_currency, user_id, status, created_at, customer,
+        shipping, commission, payment_shipping_amount, payment_commission_amount, total, items)
+     VALUES ($1, NULL, 'proxypay', $2, $3, $4, 'AOA', $5, $6, $7, $8::jsonb,
+             $9, $10, $11, $12, $13, $14::jsonb)
+     RETURNING id, user_id, status, created_at, customer, shipping, commission, total, items,
+               payment_provider, proxypay_reference, payment_amount, payment_currency,
+               payment_shipping_amount, payment_commission_amount`,
+    [
+      order.id, referenceId, paymentId, amount, order.userId, order.status, order.createdAt,
+      JSON.stringify(order.customer), order.shipping, order.commission, order.paymentShippingAmount,
+      order.paymentCommissionAmount, order.total,
+      JSON.stringify(order.items)
+    ]
+  )
+  for (const payout of getSellerPayouts(order.items)) {
+    await client.query(
+      `INSERT INTO seller_payouts (id, order_id, seller_id, amount, currency)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (order_id, seller_id) DO NOTHING`,
+      [crypto.randomUUID(), order.id, payout.sellerId, payout.amount, payout.currency]
+    )
+  }
+  await client.query('DELETE FROM pending_orders WHERE session_id = $1', [pendingOrder.session_id])
+  return mapOrder(rows[0])
+})
+
 const releasePendingOrder = async (sessionId) => withTransaction(async (client) => {
   const { rows } = await client.query(
     'SELECT session_id, items FROM pending_orders WHERE session_id = $1 FOR UPDATE',
@@ -1530,6 +1743,40 @@ const releasePendingOrder = async (sessionId) => withTransaction(async (client) 
   }
   await client.query('DELETE FROM pending_orders WHERE session_id = $1', [sessionId])
 })
+
+const expireProxyPayPendingOrders = async () => {
+  const expired = await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `SELECT session_id, payment_reference, items
+         FROM pending_orders
+        WHERE payment_provider = 'proxypay' AND expires_at <= NOW()
+        FOR UPDATE SKIP LOCKED`
+    )
+    for (const order of rows) {
+      for (const item of order.items) {
+        const updated = await client.query(
+          'UPDATE products SET stock = stock + $2 WHERE id = $1',
+          [item.productId, Number(item.quantity)]
+        )
+        if (updated.rowCount !== 1) {
+          throw new Error(`Não foi possível libertar o stock reservado para ${item.productId}.`)
+        }
+      }
+      await client.query('DELETE FROM pending_orders WHERE session_id = $1', [order.session_id])
+    }
+    return rows.map((row) => row.payment_reference).filter(Boolean)
+  })
+
+  if (!PROXYPAY_API_KEY || !expired.length) return
+  const proxypay = createProxyPayClient({ apiKey: PROXYPAY_API_KEY, baseUrl: PROXYPAY_API_URL })
+  for (const referenceId of expired) {
+    try {
+      await proxypay.deleteReference(referenceId)
+    } catch (error) {
+      console.error(`Não foi possível eliminar a referência ProxyPay expirada ${referenceId}.`, error)
+    }
+  }
+}
 
 const recordStripeRefund = async (refund) => withTransaction(async (client) => {
   const { rows } = await client.query(
@@ -1651,12 +1898,111 @@ app.post('/api/webhooks/stripe', asyncRoute(async (req, res) => {
   return res.json({ received: true })
 }))
 
+app.post('/api/webhooks/proxypay', asyncRoute(async (req, res) => {
+  if (!PROXYPAY_API_KEY) {
+    return res.status(503).json({ message: 'Webhook ProxyPay não está configurado.' })
+  }
+  if (!verifyProxyPaySignature(req.body, req.headers['x-signature'], PROXYPAY_API_KEY)) {
+    return res.status(400).json({ message: 'Assinatura do webhook ProxyPay inválida.' })
+  }
+
+  let payment
+  try {
+    payment = JSON.parse(req.body.toString('utf8'))
+  } catch {
+    return res.status(400).json({ message: 'O evento ProxyPay não contém JSON válido.' })
+  }
+  await finalizeProxyPayPayment(payment)
+  return res.status(204).end()
+}))
+
+app.get('/api/payments/references/:referenceId', requireAuth, requireRole('customer'), asyncRoute(async (req, res) => {
+  const referenceId = req.params.referenceId
+  if (!/^\d{1,12}$/.test(referenceId)) {
+    return res.status(400).json({ message: 'Referência ProxyPay inválida.' })
+  }
+
+  const { rows: orders } = await pool.query(
+    `SELECT id, status, proxypay_reference, payment_amount, payment_currency, created_at
+       FROM orders
+      WHERE proxypay_reference = $1 AND user_id = $2`,
+    [referenceId, req.user.sub]
+  )
+  if (orders[0]) {
+    return res.json({
+      referenceId,
+      entityId: PROXYPAY_ENTITY_ID,
+      status: ['paid', 'refunded'].includes(orders[0].status) ? 'paid' : orders[0].status,
+      amountAoa: Number(orders[0].payment_amount),
+      orderId: orders[0].id,
+      createdAt: orders[0].created_at
+    })
+  }
+
+  const { rows: pendingOrders } = await pool.query(
+    `SELECT payment_amount, payment_currency, payment_expires_at
+       FROM pending_orders
+      WHERE payment_provider = 'proxypay' AND payment_reference = $1 AND user_id = $2`,
+    [referenceId, req.user.sub]
+  )
+  if (!pendingOrders[0]) {
+    return res.status(404).json({ message: 'Pagamento ProxyPay não encontrado.' })
+  }
+  return res.json({
+    referenceId,
+    entityId: PROXYPAY_ENTITY_ID,
+    status: pendingOrders[0].payment_expires_at &&
+      new Date(pendingOrders[0].payment_expires_at).getTime() <= Date.now()
+      ? 'expired'
+      : 'pending',
+    amountAoa: Number(pendingOrders[0].payment_amount),
+    expiresAt: pendingOrders[0].payment_expires_at
+  })
+}))
+
 app.get('/api/orders', requireAuth, requireAdmin, asyncRoute(async (_req, res) => {
   const { rows } = await pool.query(
-    `SELECT id, user_id, status, created_at, customer, shipping, commission, total, items
+    `SELECT id, user_id, status, created_at, customer, shipping, commission, total, items,
+            payment_provider, payment_amount, payment_currency, payment_shipping_amount,
+            payment_commission_amount
        FROM orders ORDER BY created_at DESC`
   )
   return res.json(rows.map(mapOrder))
+}))
+
+app.get('/api/account/orders', requireAuth, requireRole('customer'), asyncRoute(async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT id, user_id, status, created_at, customer, shipping, commission, total, items,
+            payment_provider, proxypay_reference, payment_amount, payment_currency,
+            payment_shipping_amount, payment_commission_amount,
+            fulfillment_status, carrier, tracking_number, fulfillment_updated_at,
+            return_status, return_reason, return_carrier, return_tracking_number,
+            return_requested_at, return_updated_at, refund_status, restocked_at
+       FROM orders
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+      LIMIT 100`,
+    [req.user.sub]
+  )
+  return res.json(rows.map((row) => ({
+    ...mapOrder(row),
+    items: row.items.map((item) => ({
+      ...item,
+      name: item.name || item.productId || 'Produto'
+    })),
+    fulfillmentStatus: row.fulfillment_status,
+    carrier: row.carrier,
+    trackingNumber: row.tracking_number,
+    fulfillmentUpdatedAt: row.fulfillment_updated_at,
+    returnStatus: row.return_status,
+    returnReason: row.return_reason,
+    returnCarrier: row.return_carrier,
+    returnTrackingNumber: row.return_tracking_number,
+    returnRequestedAt: row.return_requested_at,
+    returnUpdatedAt: row.return_updated_at,
+    refundStatus: row.refund_status,
+    restockedAt: row.restocked_at
+  })))
 }))
 
 app.patch('/api/admin/orders/:id/fulfillment', requireAuth, requireAdmin, asyncRoute(async (req, res) => {
@@ -1792,14 +2138,15 @@ app.patch('/api/admin/orders/:id/returns', requireAuth, requireAdmin, asyncRoute
   })
 }))
 
-app.post('/api/admin/orders/:id/refund', requireAuth, requireAdmin, asyncRoute(async (req, res) => {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    return res.status(503).json({ message: 'Reembolsos indisponíveis: STRIPE_SECRET_KEY não está configurada.' })
+app.post('/api/admin/orders/:id/refund/manual', requireAuth, requireAdmin, asyncRoute(async (req, res) => {
+  const reference = typeof req.body?.reference === 'string' ? req.body.reference.trim() : ''
+  if (reference.length < 3 || reference.length > 200) {
+    return res.status(400).json({ message: 'Indica uma referência de comprovativo válida (3 a 200 caracteres).' })
   }
 
-  const current = await withTransaction(async (client) => {
+  const result = await withTransaction(async (client) => {
     const { rows } = await client.query(
-      `SELECT id, status, stripe_session_id, total, refund_status, refund_id, return_status
+      `SELECT id, status, payment_provider, refund_status, refund_id, return_status
          FROM orders
         WHERE id = $1
         FOR UPDATE`,
@@ -1807,6 +2154,75 @@ app.post('/api/admin/orders/:id/refund', requireAuth, requireAdmin, asyncRoute(a
     )
     const order = rows[0]
     if (!order) return { error: 'Encomenda não encontrada.', status: 404 }
+    if (order.payment_provider !== 'proxypay') {
+      return { error: 'Esta operação só se aplica a encomendas ProxyPay.', status: 409 }
+    }
+    if (order.status === 'refunded' && order.refund_status === 'refunded') {
+      return { alreadyRefunded: true, id: order.id, refundReference: order.refund_id || '' }
+    }
+    if (order.status !== 'paid') {
+      return { error: 'Só é possível registar o reembolso de uma encomenda paga.', status: 409 }
+    }
+    if (['requested', 'approved'].includes(order.return_status)) {
+      return { error: 'Regista primeiro a receção da devolução ou conclui a revisão do pedido.', status: 409 }
+    }
+
+    await client.query(
+      `UPDATE orders
+          SET status = 'refunded',
+              refund_status = 'refunded',
+              refund_id = $2,
+              fulfillment_status = 'cancelled',
+              fulfillment_updated_at = NOW(),
+              return_status = CASE
+                WHEN return_status IN ('requested', 'approved', 'received') THEN 'refunded'
+                ELSE return_status
+              END,
+              return_updated_at = CASE
+                WHEN return_status IN ('requested', 'approved', 'received') THEN NOW()
+                ELSE return_updated_at
+              END
+        WHERE id = $1`,
+      [order.id, `proxypay-manual:${reference}`]
+    )
+    await client.query(
+      `UPDATE seller_payouts
+          SET status = CASE
+                WHEN status = 'pending' THEN 'cancelled'
+                WHEN status = 'paid' THEN 'recovery_required'
+                ELSE status
+              END,
+              updated_at = NOW()
+        WHERE order_id = $1`,
+      [order.id]
+    )
+    return { id: order.id, status: 'refunded', refundReference: reference }
+  })
+
+  if (result.error) return res.status(result.status).json({ message: result.error })
+  return res.json(result)
+}))
+
+app.post('/api/admin/orders/:id/refund', requireAuth, requireAdmin, asyncRoute(async (req, res) => {
+  const current = await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `SELECT id, status, payment_provider, stripe_session_id, total, refund_status, refund_id, return_status
+         FROM orders
+        WHERE id = $1
+        FOR UPDATE`,
+      [req.params.id]
+    )
+    const order = rows[0]
+    if (!order) return { error: 'Encomenda não encontrada.', status: 404 }
+    if (order.payment_provider === 'proxypay') {
+      return {
+        error: 'Os reembolsos ProxyPay não são processados pela API. Efetua o reembolso pelo canal do comerciante e atualiza o estado manualmente.',
+        status: 409
+      }
+    }
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return { error: 'Reembolsos Stripe indisponíveis: STRIPE_SECRET_KEY não está configurada.', status: 503 }
+    }
     if (order.status === 'refunded') return { alreadyRefunded: true, orderId: order.id }
     if (order.status !== 'paid') {
       return { error: 'Só é possível reembolsar uma encomenda paga.', status: 409 }
@@ -1977,12 +2393,19 @@ app.use((error, _req, res, _next) => {
 
 await initializeDatabase()
 await seedDatabase()
+const pendingOrderCleanupTimer = setInterval(() => {
+  expireProxyPayPendingOrders().catch((error) => {
+    console.error('Não foi possível expirar reservas ProxyPay vencidas.', error)
+  })
+}, 60 * 1000)
+pendingOrderCleanupTimer.unref()
 
 const server = app.listen(PORT, () => {
   console.log(`API de e-commerce em http://localhost:${PORT}`)
 })
 
 const shutdown = async () => {
+  clearInterval(pendingOrderCleanupTimer)
   server.close(async () => {
     await pool.end()
     process.exit(0)

@@ -2,6 +2,7 @@ import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams } fro
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getCartStorageKey } from './cart.js'
 import { getReadMessages, getUnreadConversationIds, markConversationRead } from './messages.js'
+import { getCurrentCoordinates } from './geolocation.js'
 import {
   emptyStylePreferences,
   normalizeStylePreferences,
@@ -80,10 +81,11 @@ const payoutLabels = {
 const formatPrice = (value, exchangeRate) => exchangeRate
   ? formatAoa(Number(value || 0) * exchangeRate)
   : 'Cotação indisponível'
-const productBaseAoa = (product, exchangeRate) => {
-  if (product.priceCurrency === 'AOA') return Number(product.price)
-  return exchangeRate ? Number(product.price) * exchangeRate : Number.NaN
-}
+const productBaseAoa = (product, exchangeRate) => Math.round(
+  product.priceCurrency === 'AOA'
+    ? Number(product.price)
+    : exchangeRate ? Number(product.price) * exchangeRate : Number.NaN
+)
 const productCommissionAoa = (product, exchangeRate) => Math.round(productBaseAoa(product, exchangeRate) * 0.02)
 const productTotalAoa = (product, exchangeRate) =>
   productBaseAoa(product, exchangeRate) + productCommissionAoa(product, exchangeRate)
@@ -117,20 +119,6 @@ const getStoredValue = (key, fallback) => {
 const saveStoredValue = (key, value) => {
   localStorage.setItem(key, JSON.stringify(value))
 }
-
-const getCurrentCoordinates = () => new Promise((resolve, reject) => {
-  if (!navigator.geolocation) {
-    reject(new Error('Este navegador não disponibiliza localização.'))
-    return
-  }
-  navigator.geolocation.getCurrentPosition(
-    ({ coords }) => resolve({ latitude: coords.latitude, longitude: coords.longitude }),
-    (error) => reject(new Error(error.code === error.PERMISSION_DENIED
-      ? 'A permissão de localização foi recusada.'
-      : 'Não foi possível obter a localização atual.')),
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-  )
-})
 
 function ProfileAvatar({ user, className = '' }) {
   const initial = user?.name?.trim().charAt(0).toUpperCase() || '?'
@@ -186,6 +174,7 @@ function Navbar({ cartCount, currentUser, unreadMessageCount }) {
           <NavLink to="/#catalogo">Catálogo</NavLink>
           <NavLink to="/#experiencias">Experiências</NavLink>
           <NavLink to="/checkout">Checkout</NavLink>
+          {currentUser?.role === 'customer' ? <NavLink to="/conta/encomendas">As minhas encomendas</NavLink> : null}
           {currentUser?.role === 'seller' ? <NavLink to="/vendedor">Vendedor</NavLink> : null}
           {currentUser && currentUser.role !== 'admin' ? (
             <NavLink to="/mensagens" className="messages-nav-link">
@@ -238,8 +227,8 @@ function Footer() {
         <div>
           <h4>Conta</h4>
           <ul>
-            <li>Iniciar sessão</li>
-            <li>Pedidos</li>
+            <li><Link to="/login">Iniciar sessão</Link></li>
+            <li><Link to="/conta/encomendas">As minhas encomendas</Link></li>
             <li>Wishlist</li>
           </ul>
         </div>
@@ -373,9 +362,9 @@ function HomePage({
         </div>
         {exchangeRate ? (
           <p className="currency-note">
-            Preços indicativos em KZ, calculados à taxa de 1 EUR = {new Intl.NumberFormat('pt-AO', { maximumFractionDigits: 2 }).format(exchangeRate)} KZ
+            Preços em KZ, calculados à taxa de 1 EUR = {new Intl.NumberFormat('pt-AO', { maximumFractionDigits: 2 }).format(exchangeRate)} KZ
             {exchangeRateUpdatedAt ? ` (atualizada em ${new Intl.DateTimeFormat('pt-PT', { dateStyle: 'short' }).format(new Date(exchangeRateUpdatedAt))})` : ''}.
-            O checkout cobra em EUR.
+            O checkout cobra em AOA.
           </p>
         ) : null}
         <label className="catalog-search">
@@ -619,15 +608,27 @@ function CartPage({ cart, products, productsLoading, exchangeRate, onUpdateQuant
   )
 }
 
-function CheckoutPage({ cart, products, productsLoading, currentUser, authChecking, exchangeRate, onCreateCheckout }) {
+function CheckoutPage({ cart, products, productsLoading, currentUser, authChecking, exchangeRate, onCreateCheckout, onPaymentSettled }) {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [buyerLocation, setBuyerLocation] = useState(null)
   const [locationError, setLocationError] = useState('')
+  const [deliveryAddress, setDeliveryAddress] = useState('')
+  const [locationQuery, setLocationQuery] = useState('')
+  const [locationResults, setLocationResults] = useState([])
+  const [locationSearchLoading, setLocationSearchLoading] = useState(false)
   const [shippingQuote, setShippingQuote] = useState(null)
   const [shippingQuoteError, setShippingQuoteError] = useState('')
   const [shippingQuoteLoading, setShippingQuoteLoading] = useState(false)
+  const [payment, setPayment] = useState(null)
+  const [paymentStatus, setPaymentStatus] = useState(null)
+  const [paymentStatusError, setPaymentStatusError] = useState('')
   const location = useLocation()
+  const navigate = useNavigate()
+  const handledPaymentReference = useRef('')
+  const locationSearchRequest = useRef(0)
+  const referenceFromUrl = new URLSearchParams(location.search).get('reference_id')
+  const paymentReferenceId = payment?.referenceId || referenceFromUrl
   const cartItems = cart
     .map((item) => {
       const product = products.find((entry) => entry.id === item.id)
@@ -638,7 +639,6 @@ function CheckoutPage({ cart, products, productsLoading, currentUser, authChecki
 
   const subtotalAoa = cartItems.reduce((sum, item) => sum + productTotalAoa(item, exchangeRate) * item.quantity, 0)
   const commissionAoa = cartItems.reduce((sum, item) => sum + productCommissionAoa(item, exchangeRate) * item.quantity, 0)
-  const subtotalEur = cartItems.reduce((sum, item) => sum + productBaseEur(item, exchangeRate) * 1.02 * item.quantity, 0)
   const cartItemsKey = JSON.stringify(cartItems.map((item) => ({ id: item.id, quantity: item.quantity })))
 
   useEffect(() => {
@@ -663,6 +663,40 @@ function CheckoutPage({ cart, products, productsLoading, currentUser, authChecki
     return () => { active = false }
   }, [buyerLocation, cartItems.length, cartItemsKey, currentUser])
 
+  useEffect(() => {
+    if (!paymentReferenceId || !currentUser) return undefined
+    let active = true
+    let requestPending = false
+    let timer
+    const checkPayment = async () => {
+      if (requestPending) return
+      requestPending = true
+      try {
+        const status = await apiFetch(`/payments/references/${encodeURIComponent(paymentReferenceId)}`)
+        if (!active) return
+        setPaymentStatus(status)
+        setPaymentStatusError('')
+        if (status.status === 'paid' || status.status === 'expired') {
+          window.clearInterval(timer)
+        }
+        if (status.status === 'paid' && handledPaymentReference.current !== paymentReferenceId) {
+          handledPaymentReference.current = paymentReferenceId
+          await onPaymentSettled()
+        }
+      } catch (statusError) {
+        if (active) setPaymentStatusError(statusError.message || 'Não foi possível consultar o estado do pagamento.')
+      } finally {
+        requestPending = false
+      }
+    }
+    checkPayment()
+    timer = window.setInterval(checkPayment, 5000)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [currentUser, onPaymentSettled, paymentReferenceId])
+
   const handleSubmit = async (event) => {
     event.preventDefault()
     if (!cartItems.length || !currentUser || !buyerLocation || !shippingQuote || submitting) return
@@ -670,15 +704,24 @@ function CheckoutPage({ cart, products, productsLoading, currentUser, authChecki
     setSubmitting(true)
     setError('')
     try {
-      const { url } = await onCreateCheckout({
+      const newPayment = await onCreateCheckout({
         items: cartItems.map((item) => ({ id: item.id, quantity: item.quantity })),
         buyerLocation
       })
-      window.location.assign(url)
+      setPayment(newPayment)
+      navigate(`/checkout?reference_id=${encodeURIComponent(newPayment.referenceId)}`, { replace: true })
     } catch (error) {
       setError(error.message || 'Não foi possível iniciar o pagamento.')
       setSubmitting(false)
     }
+  }
+
+  const startNewPayment = () => {
+    setPayment(null)
+    setPaymentStatus(null)
+    setPaymentStatusError('')
+    setError('')
+    navigate('/checkout', { replace: true })
   }
 
   const requestLocation = async () => {
@@ -686,16 +729,55 @@ function CheckoutPage({ cart, products, productsLoading, currentUser, authChecki
     setShippingQuote(null)
     try {
       setBuyerLocation(await getCurrentCoordinates())
+      setDeliveryAddress('')
+      setLocationResults([])
     } catch (geoError) {
       setLocationError(geoError.message)
     }
+  }
+
+  const searchDeliveryAddress = async () => {
+    const requestId = ++locationSearchRequest.current
+    setLocationError('')
+    setLocationResults([])
+    if (locationQuery.trim().length < 3) {
+      setLocationError('Escreve pelo menos 3 caracteres: morada, bairro ou município.')
+      return
+    }
+
+    setLocationSearchLoading(true)
+    try {
+      const { locations } = await apiFetch('/shipping/locations', {
+        method: 'POST',
+        body: JSON.stringify({ query: locationQuery.trim() })
+      })
+      if (requestId !== locationSearchRequest.current) return
+      setLocationResults(locations)
+      if (!locations.length) {
+        setLocationError('Não encontrámos esse local em Angola. Tenta incluir o bairro e o município.')
+      }
+    } catch (searchError) {
+      if (requestId === locationSearchRequest.current) {
+        setLocationError(searchError.message || 'Não foi possível pesquisar esta morada.')
+      }
+    } finally {
+      if (requestId === locationSearchRequest.current) setLocationSearchLoading(false)
+    }
+  }
+
+  const selectDeliveryAddress = (result) => {
+    setBuyerLocation({ latitude: result.latitude, longitude: result.longitude })
+    setDeliveryAddress(result.label)
+    setLocationError('')
+    setLocationResults([])
+    setShippingQuote(null)
   }
 
   if (productsLoading) {
     return <div className="container empty-state">A carregar checkout...</div>
   }
 
-  if (!cartItems.length) {
+  if (!cartItems.length && !paymentReferenceId) {
     return <div className="container empty-state">Nenhum produto no carrinho. <Link to="/" className="text-link">Voltar ao catálogo</Link></div>
   }
 
@@ -729,20 +811,108 @@ function CheckoutPage({ cart, products, productsLoading, currentUser, authChecki
     )
   }
 
+  if (paymentReferenceId) {
+    const currentPayment = paymentStatus || payment
+    const isPaid = currentPayment?.status === 'paid'
+    const isExpired = currentPayment?.status === 'expired'
+    return (
+      <section className="container checkout-page">
+        <div className="card payment-reference-card">
+          <h1>{isPaid ? 'Pagamento confirmado' : isExpired ? 'Referência expirada' : 'Pagamento por referência Multicaixa'}</h1>
+          {isPaid ? (
+            <>
+              <p>A encomenda {currentPayment.orderId} foi confirmada. O estado e o rastreio estarão disponíveis na tua conta.</p>
+              <Link to="/conta/encomendas" className="primary-button">Ver as minhas encomendas</Link>
+            </>
+          ) : isExpired ? (
+            <>
+              <p>Esta referência já não está válida. Cria uma nova referência para pagar o carrinho.</p>
+              <button type="button" className="primary-button" onClick={startNewPayment}>Criar nova referência</button>
+            </>
+          ) : (
+            <>
+              <p>Usa os dados abaixo no Multicaixa, Multicaixa Express ou homebanking. Paga o valor exato antes da validade indicada. A confirmação é automática após o ProxyPay notificar a loja.</p>
+              <dl className="payment-reference-details">
+                <div><dt>Entidade</dt><dd>{currentPayment?.entityId || payment?.entityId || 'A carregar...'}</dd></div>
+                <div><dt>Referência</dt><dd>{paymentReferenceId}</dd></div>
+                <div><dt>Valor</dt><dd>{currentPayment?.amountAoa ? formatAoa(currentPayment.amountAoa) : 'A carregar...'}</dd></div>
+                <div><dt>Válida até</dt><dd>{currentPayment?.expiresAt
+                  ? new Intl.DateTimeFormat('pt-AO', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(currentPayment.expiresAt))
+                  : 'A carregar...'}</dd></div>
+              </dl>
+              <p className="payment-reference-status" role="status">
+                {currentPayment?.status === 'pending'
+                  ? 'À espera da confirmação do pagamento...'
+                  : 'A consultar o estado da referência...'}
+              </p>
+              {paymentStatusError ? <p className="error-message" role="alert">{paymentStatusError}</p> : null}
+            </>
+          )}
+        </div>
+      </section>
+    )
+  }
+
   return (
     <div className="container checkout-page">
       <h1>Checkout</h1>
       <form className="checkout-layout" onSubmit={handleSubmit}>
         <section className="checkout-form card">
-          <h2>Pagamento seguro</h2>
-          <p>O pagamento e os dados de entrega são recolhidos de forma segura pelo Stripe. Os dados do cartão não passam por esta loja.</p>
-          <p>Os preços e a comissão são apresentados em KZ. O Stripe cobrará o valor convertido em euros abaixo.</p>
+          <h2>Pagamento ProxyPay</h2>
+          <p>O pagamento é efetuado em kwanzas por referência Multicaixa. A loja só confirma a encomenda depois de validar a notificação assinada do ProxyPay.</p>
+          <p>Os preços e a comissão são apresentados em KZ e o valor cobrado será indicado numa referência de pagamento.</p>
           {exchangeRate ? <p className="currency-note">Taxa usada nesta estimativa: 1 EUR = {new Intl.NumberFormat('pt-AO', { maximumFractionDigits: 2 }).format(exchangeRate)} KZ.</p> : null}
           <h3>Calcular envio</h3>
-          <p>A localização atual só é recolhida quando autorizares. As coordenadas não são guardadas pela loja, mas são enviadas ao OpenRouteService para calcular o percurso por estrada.</p>
+          <p>A localização atual só é recolhida quando autorizares. Como alternativa, pesquisa a morada. A pesquisa e as coordenadas selecionadas são enviadas ao Google Maps para encontrar o local e calcular o percurso; a loja não guarda estes dados.</p>
+          <p className="map-attribution">
+            Pesquisa e cálculo de percurso fornecidos por{' '}
+            <a href="https://maps.google.com/" target="_blank" rel="noreferrer">Google Maps</a>.
+          </p>
           <button type="button" className="secondary-button" onClick={requestLocation}>
             {buyerLocation ? 'Atualizar localização' : 'Usar a minha localização'}
           </button>
+          <div className="delivery-address-search">
+            <label htmlFor="delivery-address">Ou pesquisa a tua morada, bairro ou município em Angola</label>
+            <div className="delivery-address-controls">
+              <input
+                id="delivery-address"
+                type="search"
+                autoComplete="street-address"
+                maxLength={200}
+                value={locationQuery}
+                onChange={(event) => setLocationQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    searchDeliveryAddress()
+                  }
+                }}
+                placeholder="Ex.: Maianga, Luanda"
+              />
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={locationSearchLoading || locationQuery.trim().length < 3}
+                onClick={searchDeliveryAddress}
+              >
+                {locationSearchLoading ? 'A pesquisar...' : 'Pesquisar morada'}
+              </button>
+            </div>
+            {locationResults.length ? (
+              <ul className="delivery-address-results" aria-label="Resultados de morada">
+                {locationResults.map((result) => (
+                  <li key={`${result.latitude},${result.longitude},${result.label}`}>
+                    <button type="button" onClick={() => selectDeliveryAddress(result)}>
+                      {result.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {deliveryAddress ? (
+              <p className="payment-reference-status" role="status">Local de entrega selecionado: {deliveryAddress}</p>
+            ) : null}
+          </div>
           {locationError ? <p className="error-message" role="alert">{locationError}</p> : null}
           {shippingQuoteLoading ? <p role="status">A calcular a distância e o custo de envio...</p> : null}
           {shippingQuoteError ? <p className="error-message" role="alert">{shippingQuoteError}</p> : null}
@@ -759,7 +929,7 @@ function CheckoutPage({ cart, products, productsLoading, currentUser, authChecki
             </div>
           ) : null}
           <p className="charge-amount">Envio: <strong>{shippingQuote ? formatAoa(shippingQuote.totalAoa) : 'A calcular'}</strong></p>
-          <p className="charge-amount">Total estimado a cobrar: <strong>{formatEuro(subtotalEur + (shippingQuote?.shippingEur || 0))}</strong></p>
+          <p className="charge-amount">Total estimado a cobrar: <strong>{shippingQuote ? formatAoa(shippingQuote.paymentAmountAoa) : 'A calcular'}</strong></p>
           <p>Conta: <strong>{currentUser.email}</strong></p>
           {error ? <p className="error-message" role="alert">{error}</p> : null}
           {new URLSearchParams(location.search).has('cancelled') ? (
@@ -780,9 +950,9 @@ function CheckoutPage({ cart, products, productsLoading, currentUser, authChecki
           <div className="summary-row"><span>Custo de intermediação (2%)</span><strong>{formatAoa(commissionAoa)}</strong></div>
           <div className="summary-row"><span>Subtotal com intermediação</span><strong>{formatAoa(subtotalAoa)}</strong></div>
           <div className="summary-row"><span>Envio</span><strong>{shippingQuote ? formatAoa(shippingQuote.totalAoa) : 'A calcular'}</strong></div>
-          <div className="summary-row total"><span>Total estimado em KZ</span><strong>{formatAoa(subtotalAoa + (shippingQuote?.totalAoa || 0))}</strong></div>
+          <div className="summary-row total"><span>Total estimado em KZ</span><strong>{shippingQuote ? formatAoa(shippingQuote.paymentAmountAoa) : formatAoa(subtotalAoa + (shippingQuote?.totalAoa || 0))}</strong></div>
           <button type="submit" className="primary-button full-width" disabled={submitting || !shippingQuote || shippingQuoteLoading}>
-            {submitting ? 'A redirecionar...' : 'Continuar para pagamento'}
+            {submitting ? 'A gerar referência...' : 'Gerar referência de pagamento'}
           </button>
         </aside>
       </form>
@@ -833,6 +1003,97 @@ function SuccessPage({ currentUser, authChecking, exchangeRate, onConfirmPayment
         <Link to="/" className="primary-button">Voltar à loja</Link>
       </div>
     </div>
+  )
+}
+
+function OrderHistoryPage() {
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    apiFetch('/account/orders').then((entries) => {
+      if (active) setOrders(entries)
+    }).catch((loadError) => {
+      if (active) setError(`Não foi possível carregar as encomendas: ${loadError.message}`)
+    }).finally(() => {
+      if (active) setLoading(false)
+    })
+    return () => { active = false }
+  }, [])
+
+  return (
+    <section className="container order-history-page">
+      <div className="admin-header">
+        <div>
+          <h1>As minhas encomendas</h1>
+          <p>Consulta pagamentos, expedições e devoluções.</p>
+        </div>
+        <Link to="/" className="secondary-button">Continuar a comprar</Link>
+      </div>
+      {loading ? <p role="status">A carregar encomendas...</p> : null}
+      {error ? <p className="error-message" role="alert">{error}</p> : null}
+      {!loading && !error && !orders.length ? (
+        <div className="card order-history-empty">
+          <h2>Ainda não tens encomendas</h2>
+          <p>Quando concluíres uma compra, poderás acompanhar o seu estado aqui.</p>
+          <Link to="/" className="primary-button">Explorar a loja</Link>
+        </div>
+      ) : null}
+      <div className="order-history-list">
+        {orders.map((order) => (
+          <article className="card order-history-card" key={order.id}>
+            <header className="order-history-heading">
+              <div>
+                <h2>Encomenda {order.id}</h2>
+                <time dateTime={order.createdAt}>
+                  {new Intl.DateTimeFormat('pt-AO', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(order.createdAt))}
+                </time>
+              </div>
+              <strong>{order.status === 'refunded' ? 'Reembolsada' : 'Paga'} · {order.paymentCurrency === 'AOA' ? formatAoa(order.paymentAmount) : formatEuro(order.paymentAmount)}</strong>
+            </header>
+            <dl className="order-history-status">
+              <div>
+                <dt>Expedição</dt>
+                <dd>{fulfillmentLabels[order.fulfillmentStatus] || order.fulfillmentStatus}</dd>
+              </div>
+              <div>
+                <dt>Devolução</dt>
+                <dd>{returnLabels[order.returnStatus] || order.returnStatus}</dd>
+              </div>
+              {order.carrier || order.trackingNumber ? (
+                <div>
+                  <dt>Rastreio</dt>
+                  <dd>{[order.carrier, order.trackingNumber].filter(Boolean).join(' · ')}</dd>
+                </div>
+              ) : null}
+              {order.returnCarrier || order.returnTrackingNumber ? (
+                <div>
+                  <dt>Rastreio da devolução</dt>
+                  <dd>{[order.returnCarrier, order.returnTrackingNumber].filter(Boolean).join(' · ')}</dd>
+                </div>
+              ) : null}
+            </dl>
+            <ul className="order-history-items">
+              {order.items.map((item) => (
+                <li key={item.id}>
+                  <span>{item.name} × {item.quantity}</span>
+                  <span>{order.paymentCurrency === 'AOA'
+                    ? formatAoa((Number(item.unitPriceAoa) + Number(item.commissionUnitPriceAoa || 0)) * Number(item.quantity))
+                    : formatEuro((Number(item.unitPrice) + Number(item.commissionUnitPrice || 0)) * Number(item.quantity))}</span>
+                </li>
+              ))}
+            </ul>
+            <footer className="order-history-total">
+              <span>Envio</span><span>{order.paymentCurrency === 'AOA' ? formatAoa(order.paymentShippingAmount) : formatEuro(order.shipping)}</span>
+              <span>Comissão</span><span>{order.paymentCurrency === 'AOA' ? formatAoa(order.paymentCommissionAmount) : formatEuro(order.commission)}</span>
+              <strong>Total pago</strong><strong>{order.paymentCurrency === 'AOA' ? formatAoa(order.paymentAmount) : formatEuro(order.paymentAmount)}</strong>
+            </footer>
+          </article>
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -1075,6 +1336,7 @@ function RegisterPage({ onRegister }) {
   )
 }
 function AdminPage({ products, pendingProducts, onApproveProduct, onSaveProduct, onDeleteProduct, onLogout }) {
+  const [activeTab, setActiveTab] = useState('operations')
   const [dashboard, setDashboard] = useState(null)
   const [dashboardLoading, setDashboardLoading] = useState(true)
   const [dashboardError, setDashboardError] = useState('')
@@ -1114,10 +1376,11 @@ function AdminPage({ products, pendingProducts, onApproveProduct, onSaveProduct,
   }, [period])
 
   useEffect(() => {
+    if (activeTab !== 'operations') return undefined
     loadDashboard()
     const timer = window.setInterval(loadDashboard, 60000)
     return () => window.clearInterval(timer)
-  }, [loadDashboard])
+  }, [activeTab, loadDashboard])
 
   const runOperation = async (id, endpoint, options, successMessage) => {
     setSavingOperationId(id)
@@ -1225,15 +1488,49 @@ function AdminPage({ products, pendingProducts, onApproveProduct, onSaveProduct,
   return (
     <div className="container admin-page">
       <div className="admin-header">
-        <h1>Painel de administração</h1>
+        <h1>{activeTab === 'operations' ? 'Painel de administração' : 'Gestor de catálogo'}</h1>
         <div className="admin-actions">
-          <button type="button" className="secondary-button" onClick={loadDashboard} disabled={dashboardLoading}>
-            {dashboardLoading ? 'A atualizar...' : 'Atualizar dados'}
-          </button>
+          {activeTab === 'operations' ? (
+            <button type="button" className="secondary-button" onClick={loadDashboard} disabled={dashboardLoading}>
+              {dashboardLoading ? 'A atualizar...' : 'Atualizar dados'}
+            </button>
+          ) : null}
           <button type="button" className="secondary-button" onClick={onLogout}>Sair</button>
         </div>
       </div>
 
+      <div className="admin-tabs" role="tablist" aria-label="Secções de administração">
+        <button
+          type="button"
+          id="admin-tab-operations"
+          className={`admin-tab${activeTab === 'operations' ? ' active' : ''}`}
+          role="tab"
+          aria-selected={activeTab === 'operations'}
+          aria-controls="admin-panel-operations"
+          onClick={() => setActiveTab('operations')}
+        >
+          Administração
+        </button>
+        <button
+          type="button"
+          id="admin-tab-catalog"
+          className={`admin-tab${activeTab === 'catalog' ? ' active' : ''}`}
+          role="tab"
+          aria-selected={activeTab === 'catalog'}
+          aria-controls="admin-panel-catalog"
+          onClick={() => setActiveTab('catalog')}
+        >
+          Gestor de catálogo
+        </button>
+      </div>
+
+      <div
+        id="admin-panel-operations"
+        className="admin-tab-panel"
+        role="tabpanel"
+        aria-labelledby="admin-tab-operations"
+        hidden={activeTab !== 'operations'}
+      >
       <section className="admin-dashboard" aria-labelledby="admin-dashboard-title">
         <div className="admin-section-heading">
           <div>
@@ -1438,7 +1735,7 @@ function AdminPage({ products, pendingProducts, onApproveProduct, onSaveProduct,
 
             <section className="card dashboard-panel dashboard-orders-panel">
               <h3>Operações por encomenda</h3>
-              <p>Atualiza preparação e envio, regista devoluções, confirma reembolsos Stripe e repõe artigos recebidos.</p>
+              <p>Atualiza preparação e envio, regista devoluções, processa reembolsos Stripe legados e repõe artigos recebidos.</p>
               <div className="dashboard-operation-list">
                 {dashboard.operations.map((order) => {
                   const draft = {
@@ -1579,7 +1876,32 @@ function AdminPage({ products, pendingProducts, onApproveProduct, onSaveProduct,
                               'Estado da devolução atualizado.'
                             )}
                           >Guardar devolução</button>
-                          {order.status === 'paid' ? (
+                          {order.paymentProvider === 'proxypay' && order.refundStatus === 'refunded' ? (
+                            <span className="payment-reference-status">Reembolso manual registado · comprovativo: {order.refundReference || 'sem referência'}</span>
+                          ) : null}
+                          {order.status === 'paid' && order.paymentProvider === 'proxypay' ? (
+                            <button
+                              type="button"
+                              className="danger-button"
+                              disabled={isSaving}
+                              onClick={() => {
+                                const reference = window.prompt('Processa primeiro o reembolso integral no canal ProxyPay. Introduz a referência do comprovativo para registar a operação:')
+                                if (!reference?.trim()) return
+                                if (window.confirm('Confirmas que o reembolso integral já foi processado fora da loja?')) {
+                                  runOperation(
+                                    order.id,
+                                    `/admin/orders/${encodeURIComponent(order.id)}/refund/manual`,
+                                    {
+                                      method: 'POST',
+                                      body: JSON.stringify({ reference })
+                                    },
+                                    'Reembolso ProxyPay manual registado.'
+                                  )
+                                }
+                              }}
+                            >Registar reembolso manual</button>
+                          ) : null}
+                          {order.status === 'paid' && order.paymentProvider !== 'proxypay' ? (
                             <button
                               type="button"
                               className="danger-button"
@@ -1702,12 +2024,20 @@ function AdminPage({ products, pendingProducts, onApproveProduct, onSaveProduct,
             </section>
 
             <p className="dashboard-disclaimer">
-              Os estados de expedição e os comprovativos de pagamento são registos administrativos. A aplicação não integra transportadoras nem executa transferências bancárias; os reembolsos são submetidos ao Stripe.
+              Os estados de expedição e os comprovativos de pagamento são registos administrativos. A aplicação não integra transportadoras nem executa transferências bancárias; os reembolsos ProxyPay têm de ser tratados manualmente no canal do comerciante.
             </p>
           </>
         ) : null}
       </section>
+      </div>
 
+      <div
+        id="admin-panel-catalog"
+        className="admin-tab-panel"
+        role="tabpanel"
+        aria-labelledby="admin-tab-catalog"
+        hidden={activeTab !== 'catalog'}
+      >
       <h2 className="admin-management-title">Gestão do catálogo</h2>
       <div className="admin-layout">
         <form className="card admin-form" onSubmit={handleSubmit}>
@@ -1801,6 +2131,7 @@ function AdminPage({ products, pendingProducts, onApproveProduct, onSaveProduct,
             </div>
           ))}
         </div>
+      </div>
       </div>
     </div>
   )
@@ -1930,7 +2261,7 @@ function SellerPage() {
       </div>
       <section className="card pickup-location-card">
         <h2>Localização de recolha</h2>
-        <p>Guarda o ponto de recolha dos produtos. A localização é usada para calcular a distância por estrada e o custo de envio. As coordenadas são enviadas ao OpenRouteService ao calcular uma cotação.</p>
+        <p>Guarda o ponto de recolha dos produtos. A localização é usada para calcular a distância por estrada e o custo de envio através do Google Maps.</p>
         <p role="status">{hasPickupLocation ? 'Localização de recolha configurada.' : 'Configura a localização antes de receber encomendas.'}</p>
         <button type="button" className="secondary-button" onClick={savePickupLocation} disabled={savingPickupLocation}>
           {savingPickupLocation
@@ -2326,17 +2657,22 @@ export default function App() {
   }, [currentUser])
 
   const createCheckout = async (payload) => {
-    const response = await apiFetch('/payments/create-checkout-session', {
+    return apiFetch('/payments/create-checkout-session', {
       method: 'POST',
       body: JSON.stringify(payload)
     })
-    if (!response.url) throw new Error('O Stripe não devolveu um endereço de pagamento.')
-    const checkoutUrl = new URL(response.url)
-    if (checkoutUrl.protocol !== 'https:' || checkoutUrl.hostname !== 'checkout.stripe.com') {
-      throw new Error('O Stripe devolveu um endereço de pagamento inválido.')
-    }
-    return { ...response, url: checkoutUrl.toString() }
   }
+
+  const handleProxyPayPaymentSettled = useCallback(async () => {
+    setCart([])
+    try {
+      const freshProducts = normalizeProducts(await apiFetch('/products'))
+      setProducts(freshProducts)
+      saveStoredValue('shopco-products', freshProducts)
+    } catch (error) {
+      setProductError(`Pagamento confirmado, mas não foi possível atualizar o catálogo: ${error.message}`)
+    }
+  }, [])
 
   const confirmPayment = async (sessionId) => {
     const order = await apiFetch('/payments/confirm', {
@@ -2458,8 +2794,16 @@ export default function App() {
           <Route path="/" element={<HomePage products={products} productsLoading={productsLoading} exchangeRate={exchangeRate} exchangeRateUpdatedAt={exchangeRateUpdatedAt} reviews={reviews} reviewsLoading={reviewsLoading} currentUser={currentUser} authChecking={authChecking} onCreateReview={createReview} onAddToCart={addToCart} />} />
           <Route path="/produto/:id" element={<ProductPage products={products} productsLoading={productsLoading} exchangeRate={exchangeRate} currentUser={currentUser} onStartChat={startChat} onAddToCart={addToCart} />} />
           <Route path="/carrinho" element={<CartPage cart={cart} products={products} productsLoading={productsLoading} exchangeRate={exchangeRate} onUpdateQuantity={updateQuantity} onRemoveItem={removeItem} />} />
-          <Route path="/checkout" element={<CheckoutPage cart={cart} products={products} productsLoading={productsLoading} currentUser={currentUser} authChecking={authChecking} exchangeRate={exchangeRate} onCreateCheckout={createCheckout} />} />
+          <Route path="/checkout" element={<CheckoutPage cart={cart} products={products} productsLoading={productsLoading} currentUser={currentUser} authChecking={authChecking} exchangeRate={exchangeRate} onCreateCheckout={createCheckout} onPaymentSettled={handleProxyPayPaymentSettled} />} />
           <Route path="/checkout/sucesso" element={<SuccessPage currentUser={currentUser} authChecking={authChecking} exchangeRate={exchangeRate} onConfirmPayment={confirmPayment} />} />
+          <Route
+            path="/conta/encomendas"
+            element={
+              currentUser?.role === 'customer'
+                ? <OrderHistoryPage />
+                : <div className="container empty-state">Inicia sessão como cliente para consultar as encomendas. <Link to="/login" className="text-link">Entrar</Link></div>
+            }
+          />
           <Route path="/login" element={<LoginPage currentUser={currentUser} onLogin={loginUser} onLogout={logoutUser} onUpdateProfileImage={updateProfileImage} />} />
               <Route path="/registo" element={<RegisterPage onRegister={registerUser} />} />
           <Route path="/mensagens" element={currentUser && currentUser.role !== 'admin' ? <ConversationsPage conversations={conversations} loading={conversationsLoading} error={conversationsError} unreadConversationIds={unreadConversationIds} /> : <div className="container empty-state">Inicia sessão como cliente ou vendedor para ver as mensagens. <Link to="/login" className="text-link">Entrar</Link></div>} />
